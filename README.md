@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LilySEO - SEO Analysis and Optimization Platform
+
+LilySEO is a comprehensive SEO analysis and optimization platform designed to help businesses improve their online visibility and drive organic growth. The platform provides detailed SEO audits, keyword analysis, competitor tracking, and actionable tasks to improve search engine rankings.
+
+## Features
+
+- **SEO Audits**: Comprehensive website analysis with detailed reports on issues and recommendations
+- **Keyword Analysis**: Identify primary and secondary keywords, keyword opportunities, and density analysis
+- **Performance Metrics**: Track PageSpeed Insights metrics for both mobile and desktop
+- **Backlink Analysis**: Monitor backlinks, referring domains, and historical backlink growth
+- **Competitor Tracking**: Compare your SEO performance against competitors
+- **Task Management**: Convert SEO issues into actionable tasks with priorities
+- **White-Label Capabilities**: Customize the platform with your own branding
+
+## Tech Stack
+
+- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL, Authentication, Storage)
+- **Charts and Visualizations**: Recharts
+- **UI Components**: Radix UI, Lucide React icons
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 18.x or higher
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/lilyseo.git
+   cd lilyseo-frontend
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
+
+3. Set up environment variables:
+   Create a `.env.local` file in the root directory with the following variables:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+4. Run the development server:
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+
+## Project Structure
+
+```
+lilyseo-frontend/
+├── public/             # Static assets
+├── src/
+│   ├── app/            # Next.js app router pages
+│   ├── components/     # React components
+│   │   ├── audits/     # SEO audit components
+│   │   ├── ui/         # UI components
+│   │   └── white-label/ # White-label components
+│   ├── lib/            # Utility functions and libraries
+│   │   └── supabase/   # Supabase client and types
+│   └── services/       # API services
+└── ...
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## White-Label Customization
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+LilySEO supports white-label customization, allowing you to:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Replace the logo and branding
+- Customize colors and themes
+- Modify navigation links
+- Add custom copyright information
+- Configure social media links
 
-## Learn More
+To use white-label features, use the `WhiteLabelLayout` component with your custom props.
 
-To learn more about Next.js, take a look at the following resources:
+## Contributing
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## License
 
-## Deploy on Vercel
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Support
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For support, email support@lilyseo.com or open an issue in the GitHub repository.
