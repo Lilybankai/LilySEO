@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Get request body
-    const { title, description, priority, projectId } = await request.json();
+    const { title, description, priority, projectId, auditId } = await request.json();
     
     if (!title || !projectId) {
       return NextResponse.json(
@@ -120,23 +120,32 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: user.id,
         project_id: projectId,
+        audit_id: auditId || null,
         title,
         description: description || null,
         status: "pending",
         priority: priority || "medium",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select()
       .single();
     
     if (error) {
+      console.error("Error creating todo:", error);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
       );
     }
     
-    return NextResponse.json({ data: todo });
+    return NextResponse.json({ 
+      success: true,
+      data: todo,
+      message: "Todo added successfully"
+    });
   } catch (error: any) {
+    console.error("Failed to create todo:", error);
     return NextResponse.json(
       { error: error.message || "An error occurred" },
       { status: 500 }

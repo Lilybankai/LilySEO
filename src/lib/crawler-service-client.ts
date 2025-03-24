@@ -92,34 +92,6 @@ export async function getAuditResults(auditId: string): Promise<any> {
 }
 
 /**
- * Get comprehensive details for an audit
- * @param auditId The ID of the audit
- * @returns A promise that resolves to the combined audit status and results
- */
-export async function getAuditDetails(auditId: string): Promise<any> {
-  // First get the status to check if the audit is completed
-  const statusData = await getAuditStatus(auditId);
-  
-  // If the audit is completed, get the full results as well
-  if (statusData.status === "completed") {
-    try {
-      const resultsData = await getAuditResults(auditId);
-      return {
-        ...statusData,
-        ...resultsData,
-      };
-    } catch (error) {
-      console.error("Error fetching audit results:", error);
-      // Return just the status data if we can't get results
-      return statusData;
-    }
-  }
-  
-  // If not completed, just return the status data
-  return statusData;
-}
-
-/**
  * Update the webhook URL for a project
  * @param projectId The ID of the project
  * @param webhookUrl The URL to receive webhook notifications

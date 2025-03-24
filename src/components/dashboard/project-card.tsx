@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { CheckCircle2, Clock, ExternalLink } from "lucide-react"
+import { CheckCircle2, Clock, ExternalLink, AlertTriangle } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,8 +12,8 @@ type Project = Database["public"]["Tables"]["projects"]["Row"]
 
 interface ProjectMetrics {
   seoScore: number
-  position: string
-  crawlStatus: "completed" | "pending" | "failed"
+  position: string | number
+  crawlStatus: "pending" | "processing" | "completed" | "failed"
   lastCrawl: string
 }
 
@@ -46,15 +46,15 @@ export function DashboardProjectCard({ project, metrics }: DashboardProjectCardP
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>SEO Score</span>
-              <span className="font-medium">{metrics.seoScore}/100</span>
+              <span className="font-medium">{metrics.seoScore || 0}/100</span>
             </div>
-            <Progress value={metrics.seoScore} className="h-2" />
+            <Progress value={metrics.seoScore || 0} className="h-2" />
           </div>
           
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Avg. Position</p>
-              <p className="font-medium">{metrics.position}</p>
+              <p className="font-medium">{metrics.position || "N/A"}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Last Crawl</p>
@@ -68,14 +68,19 @@ export function DashboardProjectCard({ project, metrics }: DashboardProjectCardP
                 <CheckCircle2 className="mr-1 h-4 w-4" />
                 <span>Crawl completed</span>
               </div>
-            ) : metrics.crawlStatus === "pending" ? (
-              <div className="flex items-center text-amber-500 text-sm">
+            ) : metrics.crawlStatus === "processing" ? (
+              <div className="flex items-center text-blue-500 text-sm">
                 <Clock className="mr-1 h-4 w-4" />
                 <span>Crawl in progress</span>
               </div>
+            ) : metrics.crawlStatus === "pending" ? (
+              <div className="flex items-center text-amber-500 text-sm">
+                <Clock className="mr-1 h-4 w-4" />
+                <span>Crawl pending</span>
+              </div>
             ) : (
               <div className="flex items-center text-red-500 text-sm">
-                <Clock className="mr-1 h-4 w-4" />
+                <AlertTriangle className="mr-1 h-4 w-4" />
                 <span>Crawl failed</span>
               </div>
             )}
@@ -88,5 +93,5 @@ export function DashboardProjectCard({ project, metrics }: DashboardProjectCardP
         </Button>
       </CardFooter>
     </Card>
-  )
+  );
 } 

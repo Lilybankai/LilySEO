@@ -41,6 +41,13 @@ export function DashboardMetricCard({
   // Get the icon component from the map
   const Icon = iconMap[iconName];
   
+  // Format the trend value to always show a sign
+  const formattedTrendValue = trend?.value 
+    ? trend.value.startsWith('+') || trend.value.startsWith('-') 
+      ? trend.value 
+      : (parseFloat(trend.value) >= 0 ? `+${trend.value}` : trend.value)
+    : '';
+  
   return (
     <Card>
       <CardContent className="p-6">
@@ -48,15 +55,15 @@ export function DashboardMetricCard({
           <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
             <Icon className="h-6 w-6 text-primary" />
           </div>
-          <div className="flex flex-col items-end">
-            {trend && (
+          {trend && (
+            <div className="flex flex-col items-end">
               <div className="flex items-center text-sm font-medium">
                 <span
                   className={
                     trend.isPositive ? "text-green-500" : "text-red-500"
                   }
                 >
-                  {trend.value}
+                  {formattedTrendValue}
                 </span>
                 {trend.isPositive ? (
                   <ArrowUp className="ml-1 h-4 w-4 text-green-500" />
@@ -64,9 +71,9 @@ export function DashboardMetricCard({
                   <ArrowDown className="ml-1 h-4 w-4 text-red-500" />
                 )}
               </div>
-            )}
-            <p className="text-xs text-muted-foreground">{trend?.label}</p>
-          </div>
+              <p className="text-xs text-muted-foreground">{trend.label}</p>
+            </div>
+          )}
         </div>
         <div className="mt-4 space-y-1">
           <h3 className="font-medium text-sm text-muted-foreground">{title}</h3>

@@ -4,14 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * GET handler for retrieving a specific audit report
  * @param request The incoming request
- * @param params The route parameters
+ * @param context The route context with params
  * @returns A response with the audit report
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
+    const id = context.params.id;
     const supabase = await createClient();
     
     // Get user data
@@ -34,7 +35,7 @@ export async function GET(
           url
         )
       `)
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single();
     
@@ -64,14 +65,15 @@ export async function GET(
 /**
  * DELETE handler for deleting a specific audit report
  * @param request The incoming request
- * @param params The route parameters
+ * @param context The route context with params
  * @returns A response indicating success or failure
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
+    const id = context.params.id;
     const supabase = await createClient();
     
     // Get user data
@@ -87,7 +89,7 @@ export async function DELETE(
     const { data: existingAudit, error: auditError } = await supabase
       .from("audits")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single();
     
@@ -102,7 +104,7 @@ export async function DELETE(
     const { error: deleteError } = await supabase
       .from("audits")
       .delete()
-      .eq("id", params.id);
+      .eq("id", id);
     
     if (deleteError) {
       return NextResponse.json(

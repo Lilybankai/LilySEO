@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Google Maps API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      font-size: 16px;
+    }
+    .results {
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      min-height: 100px;
+      margin-bottom: 20px;
+    }
+    h1, h2 {
+      margin-bottom: 5px;
+    }
+    p.status {
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+    .test-section {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Google Maps API Test</h1>
+    
+    <!-- Test 1: Standard Places API -->
+    <div class="test-section">
+      <h2>Test 1: Places API (Standard/Legacy)</h2>
+      <p class="status" id="status1">Waiting for Google Maps API to load...</p>
+      
+      <input
+        id="autocomplete1"
+        placeholder="Enter a location"
+        type="text"
+      />
+      
+      <h3>Results</h3>
+      <div class="results" id="results1">Results will appear here after you select a place.</div>
+    </div>
+    
+    <!-- Test 2: Places API (New) -->
+    <div class="test-section">
+      <h2>Test 2: Places API (New)</h2>
+      <p>Note: This test intentionally doesn't use the libraries=places parameter to test if Places API (New) works</p>
+      <p class="status" id="status2">Waiting for Maps API to load...</p>
+      
+      <input
+        id="autocomplete2"
+        placeholder="Enter a location (Places API New)"
+        type="text"
+      />
+      
+      <h3>Results</h3>
+      <div class="results" id="results2">Results will appear here after you select a place.</div>
+    </div>
+    
+    <div style="margin-top: 20px;">
+      <strong>API Key:</strong> AIzaSyA98HLbQAzo489KysxY3tX6pjnRjCzpYiM
+    </div>
+  </div>
+  
+  <script>
+    // Initialize autocomplete for Test 1 (Standard/Legacy Places API)
+    function initAutocomplete() {
+      console.log("Initialization started for Places API (Standard)");
+      document.getElementById('status1').textContent = "Google Maps Places API loaded";
+      document.getElementById('status1').style.color = "green";
+      
+      const input = document.getElementById('autocomplete1');
+      
+      // Create the autocomplete object
+      try {
+        const autocomplete = new google.maps.places.Autocomplete(input, {
+          types: ['geocode'],
+          fields: ['place_id', 'geometry', 'name', 'formatted_address']
+        });
+        
+        console.log("Autocomplete initialized (Standard Places API)");
+        
+        // Set up the event listener
+        autocomplete.addListener('place_changed', function() {
+          const place = autocomplete.getPlace();
+          console.log("Selected place (Standard):", place);
+          
+          if (!place.geometry) {
+            document.getElementById('results1').textContent = "No place details available for input: '" + place.name + "'";
+            return;
+          }
+          
+          // Display the address components
+          const addressComponents = [];
+          if (place.formatted_address) {
+            addressComponents.push(`Formatted Address: ${place.formatted_address}`);
+          }
+          if (place.geometry && place.geometry.location) {
+            addressComponents.push(`Location: ${place.geometry.location.lat()}, ${place.geometry.location.lng()}`);
+          }
+          
+          document.getElementById('results1').innerHTML = addressComponents.join('<br>');
+        });
+      } catch (error) {
+        console.error("Error initializing autocomplete (Standard):", error);
+        document.getElementById('results1').textContent = "Error: " + error.message;
+        document.getElementById('status1').textContent = "Error loading Places API";
+        document.getElementById('status1').style.color = "red";
+      }
+    }
+    
+    // Initialize autocomplete for Test 2 (New Places API)
+    function initMapTest2() {
+      console.log("Initialization started for Places API (New)");
+      document.getElementById('status2').textContent = "Maps API loaded, testing Places API (New)";
+      document.getElementById('status2').style.color = "green";
+      
+      const input = document.getElementById('autocomplete2');
+      
+      // Attempt to use Places API without the places library explicitly loaded
+      try {
+        // Test if we can access the places functionality
+        if (google.maps.places) {
+          const autocomplete = new google.maps.places.Autocomplete(input, {
+            types: ['geocode'],
+            fields: ['place_id', 'geometry', 'name', 'formatted_address']
+          });
+          
+          console.log("Autocomplete initialized for Places API (New)");
+          
+          autocomplete.addListener('place_changed', function() {
+            const place = autocomplete.getPlace();
+            console.log("Selected place (New API):", place);
+            
+            if (!place.geometry) {
+              document.getElementById('results2').textContent = "No place details available for input: '" + place.name + "'";
+              return;
+            }
+            
+            const addressComponents = [];
+            if (place.formatted_address) {
+              addressComponents.push(`Formatted Address: ${place.formatted_address}`);
+            }
+            if (place.geometry && place.geometry.location) {
+              addressComponents.push(`Location: ${place.geometry.location.lat()}, ${place.geometry.location.lng()}`);
+            }
+            
+            document.getElementById('results2').innerHTML = addressComponents.join('<br>');
+          });
+        } else {
+          throw new Error("Places API (New) not available");
+        }
+      } catch (error) {
+        console.error("Error initializing Places API (New):", error);
+        document.getElementById('results2').textContent = "Error: " + error.message;
+        document.getElementById('status2').textContent = "Error loading Places API (New)";
+        document.getElementById('status2').style.color = "red";
+      }
+    }
+    
+    function handleScriptError() {
+      console.error("Google Maps script failed to load");
+      document.getElementById('status1').textContent = "Failed to load Google Maps API";
+      document.getElementById('status1').style.color = "red";
+      document.getElementById('status2').textContent = "Failed to load Google Maps API";
+      document.getElementById('status2').style.color = "red";
+    }
+  </script>
+  
+  <!-- First script for standard Places API -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA98HLbQAzo489KysxY3tX6pjnRjCzpYiM&libraries=places&callback=initAutocomplete"
+    async
+    defer
+    onerror="handleScriptError()"
+  ></script>
+  
+  <!-- Second script for Places API (New) test -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA98HLbQAzo489KysxY3tX6pjnRjCzpYiM&callback=initMapTest2"
+    async
+    defer
+    onerror="handleScriptError()"
+  ></script>
+</body>
+</html> 

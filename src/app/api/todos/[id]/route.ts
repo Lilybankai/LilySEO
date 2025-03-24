@@ -4,14 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * GET handler for retrieving a specific todo
  * @param request The incoming request
- * @param params The route parameters
+ * @param context The route context with params
  * @returns A response with the todo
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, context: { params: { id: string } }) {
   try {
+    const id = context.params.id;
     const supabase = await createClient();
     
     // Get user data
@@ -34,7 +32,7 @@ export async function GET(
           url
         )
       `)
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single();
     
@@ -64,14 +62,12 @@ export async function GET(
 /**
  * PATCH handler for updating a specific todo
  * @param request The incoming request
- * @param params The route parameters
+ * @param context The route context with params
  * @returns A response with the updated todo
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest, context: { params: { id: string } }) {
   try {
+    const id = context.params.id;
     const supabase = await createClient();
     
     // Get user data
@@ -90,7 +86,7 @@ export async function PATCH(
     const { data: todo, error: todoError } = await supabase
       .from("todos")
       .select("id")
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single();
     
@@ -111,7 +107,7 @@ export async function PATCH(
         priority: updates.priority,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
       .single();
     
@@ -134,14 +130,12 @@ export async function PATCH(
 /**
  * DELETE handler for deleting a specific todo
  * @param request The incoming request
- * @param params The route parameters
+ * @param context The route context with params
  * @returns A response indicating success or failure
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
   try {
+    const id = context.params.id;
     const supabase = await createClient();
     
     // Get user data
@@ -157,7 +151,7 @@ export async function DELETE(
     const { data: todo, error: todoError } = await supabase
       .from("todos")
       .select("id")
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single();
     
@@ -172,7 +166,7 @@ export async function DELETE(
     const { error } = await supabase
       .from("todos")
       .delete()
-      .eq("id", params.id);
+      .eq("id", id);
     
     if (error) {
       return NextResponse.json(

@@ -232,58 +232,85 @@ export interface Database {
           created_at: string
           updated_at: string
           user_id: string
+          is_active: boolean
+          company_name: string | null
           logo_url: string | null
           logo_alt: string | null
           primary_color: string | null
           secondary_color: string | null
-          company_name: string | null
+          accent_color: string | null
           custom_domain: string | null
+          custom_domain_verified: boolean | null
+          custom_copyright: string | null
           custom_css: string | null
           custom_js: string | null
-          custom_copyright: string | null
-          social_links: Json | null
           navigation: Json | null
           footer_navigation: Json | null
-          is_active: boolean
+          social_links: Json | null
+          pdf_defaults: Json | null
+          remove_powered_by: boolean | null
+          use_custom_email_branding: boolean | null
+          use_custom_pdf_branding: boolean | null
         }
         Insert: {
           id?: string
           created_at?: string
           updated_at?: string
           user_id: string
+          is_active?: boolean
+          company_name?: string | null
           logo_url?: string | null
           logo_alt?: string | null
           primary_color?: string | null
           secondary_color?: string | null
-          company_name?: string | null
+          accent_color?: string | null
           custom_domain?: string | null
+          custom_domain_verified?: boolean | null
+          custom_copyright?: string | null
           custom_css?: string | null
           custom_js?: string | null
-          custom_copyright?: string | null
-          social_links?: Json | null
           navigation?: Json | null
           footer_navigation?: Json | null
-          is_active?: boolean
+          social_links?: Json | null
+          pdf_defaults?: Json | null
+          remove_powered_by?: boolean | null
+          use_custom_email_branding?: boolean | null
+          use_custom_pdf_branding?: boolean | null
         }
         Update: {
           id?: string
           created_at?: string
           updated_at?: string
           user_id?: string
+          is_active?: boolean
+          company_name?: string | null
           logo_url?: string | null
           logo_alt?: string | null
           primary_color?: string | null
           secondary_color?: string | null
-          company_name?: string | null
+          accent_color?: string | null
           custom_domain?: string | null
+          custom_domain_verified?: boolean | null
+          custom_copyright?: string | null
           custom_css?: string | null
           custom_js?: string | null
-          custom_copyright?: string | null
-          social_links?: Json | null
           navigation?: Json | null
           footer_navigation?: Json | null
-          is_active?: boolean
+          social_links?: Json | null
+          pdf_defaults?: Json | null
+          remove_powered_by?: boolean | null
+          use_custom_email_branding?: boolean | null
+          use_custom_pdf_branding?: boolean | null
         }
+        Relationships: [
+          {
+            foreignKeyName: "white_label_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       project_templates: {
         Row: {
@@ -353,6 +380,219 @@ export interface Database {
           refresh_token?: string
           token_expiry?: string
           site_url?: string
+        }
+      }
+      leads: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          user_id: string
+          business_name: string
+          address: string | null
+          phone: string | null
+          website: string | null
+          rating: number | null
+          place_id: string | null
+          latitude: number | null
+          longitude: number | null
+          categories: string[] | null
+          notes: string | null
+          status: string
+          contacted: boolean
+          contacted_date: string | null
+          search_id: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          user_id: string
+          business_name: string
+          address?: string | null
+          phone?: string | null
+          website?: string | null
+          rating?: number | null
+          place_id?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          categories?: string[] | null
+          notes?: string | null
+          status?: string
+          contacted?: boolean
+          contacted_date?: string | null
+          search_id?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+          business_name?: string
+          address?: string | null
+          phone?: string | null
+          website?: string | null
+          rating?: number | null
+          place_id?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          categories?: string[] | null
+          notes?: string | null
+          status?: string
+          contacted?: boolean
+          contacted_date?: string | null
+          search_id?: string | null
+        }
+      }
+      lead_searches: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          user_id: string
+          search_query: string
+          location: string
+          min_rating: number | null
+          max_results: number | null
+          results_count: number | null
+          search_date: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          user_id: string
+          search_query: string
+          location: string
+          min_rating?: number | null
+          max_results?: number | null
+          results_count?: number | null
+          search_date?: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+          search_query?: string
+          location?: string
+          min_rating?: number | null
+          max_results?: number | null
+          results_count?: number | null
+          search_date?: string
+        }
+      }
+      search_packages: {
+        Row: {
+          id: string
+          name: string
+          searches_count: number
+          price: number
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          searches_count: number
+          price: number
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          searches_count?: number
+          price?: number
+          active?: boolean
+          created_at?: string
+        }
+      }
+      user_search_packages: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          user_id: string
+          package_id: string
+          remaining_searches: number
+          purchase_date: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          user_id: string
+          package_id: string
+          remaining_searches: number
+          purchase_date?: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+          package_id?: string
+          remaining_searches?: number
+          purchase_date?: string
+        }
+      }
+      lead_search_packages: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          name: string
+          description: string | null
+          searches_count: number
+          price: number
+          active: boolean
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          name: string
+          description?: string | null
+          searches_count: number
+          price: number
+          active?: boolean
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          name?: string
+          description?: string | null
+          searches_count?: number
+          price?: number
+          active?: boolean
+        }
+      }
+      usage_limits: {
+        Row: {
+          id: string
+          plan_type: string
+          feature_name: string
+          monthly_limit: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          plan_type: string
+          feature_name: string
+          monthly_limit: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          plan_type?: string
+          feature_name?: string
+          monthly_limit?: number
+          created_at?: string
+          updated_at?: string
         }
       }
     }

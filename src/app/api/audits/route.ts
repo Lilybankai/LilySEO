@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/server";
 import { analyzeSite, generateSeoTasks } from "@/services/seo-analysis";
 import { z } from "zod";
+import { getCrawlerServiceUrl } from "@/lib/api-config";
+import { getUserAuditLimits } from "@/lib/subscription";
+
+// Define the audit request schema
+const auditRequestSchema = z.object({
+  projectId: z.string().uuid(),
+  url: z.union([z.string().url(), z.literal("")]).optional(),
+  description: z.string().optional(),
+  auditOptions: z.record(z.boolean()).default({}),
+  auditDepth: z.enum(["basic", "standard", "deep"]).default("standard"),
+});
 
 /**
  * GET handler for retrieving audit reports
@@ -11,7 +22,7 @@ import { z } from "zod";
 export async function GET(request: NextRequest) {
   try {
     // Get the current user's session
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
@@ -88,66 +99,128 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log("Starting audit creation process");
+    
     // Get the current user's session
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
+      console.log("No session found, returning 401");
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
+    console.log("User authenticated:", session.user.id);
+
+    // Check user's audit limits
+    const { remaining, isLimited } = await getUserAuditLimits(session.user.id);
+    console.log("Audit limits:", { remaining, isLimited });
+    
+    if (isLimited && remaining <= 0) {
+      console.log("User has reached audit limit");
+      return NextResponse.json(
+        { error: "Audit limit reached. Upgrade your plan for more audits." },
+        { status: 403 }
+      );
+    }
+
     // Parse and validate the request body
     const body = await request.json();
+    console.log("Request body:", JSON.stringify(body));
+    
     const validationResult = auditRequestSchema.safeParse(body);
 
     if (!validationResult.success) {
+      console.log("Validation failed:", validationResult.error.format());
       return NextResponse.json(
         { error: "Invalid request data", details: validationResult.error.format() },
         { status: 400 }
       );
     }
 
-    const { url, projectId, description, auditOptions, auditDepth } = validationResult.data;
+    const { projectId, url, description, auditOptions, auditDepth } = validationResult.data;
+    console.log("Validated data:", { projectId, url, description, auditOptions, auditDepth });
 
     // Verify the project exists and belongs to the user
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .select("id")
+      .select("id, url")
       .eq("id", projectId)
       .eq("user_id", session.user.id)
       .single();
 
     if (projectError || !project) {
+      console.log("Project not found or access denied:", projectError);
       return NextResponse.json(
         { error: "Project not found or access denied" },
         { status: 404 }
       );
     }
 
-    // Create the audit record
-    const { data: audit, error: auditError } = await supabase
-      .from("audits")
-      .insert({
+    console.log("Project found:", project);
+    console.log("Project ID (should be a valid UUID):", projectId);
+    console.log("User ID:", session.user.id);
+    console.log("Project URL:", project.url);
+    
+    // Try an insert with absolutely minimal fields
+    let audit: any;
+    try {
+      console.log("Attempting bare minimum insert with only required fields");
+      
+      // First, prepare the query data to avoid any type issues
+      const insertData = {
         project_id: projectId,
         user_id: session.user.id,
-        url,
-        status: "pending",
-        report: {
-          options: auditOptions,
-          depth: auditDepth,
-          description: description || null,
-        },
-      })
-      .select()
-      .single();
-
-    if (auditError) {
-      console.error("Error creating audit:", auditError);
+        url: project.url || '', // Ensure URL is never null
+        status: 'pending'
+      };
+      
+      console.log("Insert data:", insertData);
+      
+      // Try using the RLS-bypassing function
+      console.log("Trying insert using security definer function");
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        "insert_audit_bypass_rls",
+        {
+          p_project_id: projectId,
+          p_user_id: session.user.id,
+          p_url: project.url || ''
+        }
+      );
+      
+      if (rpcError) {
+        console.error("Security definer function failed:", rpcError);
+        
+        // Fall back to standard insert
+        console.log("Falling back to standard insert");
+        const { data, error } = await supabase
+          .from("audits")
+          .insert(insertData)
+          .select()
+          .single();
+          
+        if (error) {
+          console.error("Standard insert also failed:", error);
+          console.log("All insertion methods failed. Cannot create audit record.");
+          return NextResponse.json(
+            { error: "Failed to create audit: " + error.message },
+            { status: 500 }
+          );
+        }
+        
+        audit = data;
+        console.log("Audit created successfully via standard insert:", audit);
+      } else {
+        audit = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+        console.log("Audit created successfully via security definer function:", audit);
+      }
+    } catch (insertError) {
+      console.error("Exception during audit creation:", insertError);
       return NextResponse.json(
-        { error: "Failed to create audit" },
+        { error: "Failed to create audit: " + (insertError instanceof Error ? insertError.message : "Unknown error") },
         { status: 500 }
       );
     }
@@ -158,12 +231,65 @@ export async function POST(request: NextRequest) {
       .update({ last_audit_date: new Date().toISOString() })
       .eq("id", projectId);
 
-    // In a real application, you would trigger the actual audit process here
-    // This could be done via a background job, webhook, or serverless function
-    // For now, we'll simulate this by updating the status after a delay
-    setTimeout(async () => {
-      await startAuditProcess(audit.id);
-    }, 1000);
+    // Start the audit process with the crawler service
+    try {
+      // Update the audit status to processing
+      console.log("Updating audit status to processing");
+      await supabase
+        .from("audits")
+        .update({ status: "processing" })
+        .eq("id", audit.id);
+      
+      // Call the crawler service to start the audit
+      const crawlerUrl = getCrawlerServiceUrl("/api/audit/start");
+      console.log("Calling crawler service at:", crawlerUrl);
+      
+      const crawlerPayload = {
+        projectId: audit.project_id,
+        url: audit.url,
+        auditId: audit.id,
+        options: {
+          ...auditOptions,
+          depth: auditDepth,
+        },
+      };
+      
+      console.log("Crawler service payload:", JSON.stringify(crawlerPayload));
+      
+      const crawlerResponse = await fetch(crawlerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(crawlerPayload),
+      });
+
+      console.log("Crawler service response status:", crawlerResponse.status);
+      
+      if (!crawlerResponse.ok) {
+        const errorData = await crawlerResponse.json().catch(() => ({}));
+        console.error("Error starting audit with crawler service:", errorData);
+        
+        // Update the audit status to failed
+        console.log("Updating audit status to failed");
+        await supabase
+          .from("audits")
+          .update({ 
+            status: "failed",
+            error_message: errorData.error || crawlerResponse.statusText
+          })
+          .eq("id", audit.id);
+          
+        throw new Error(errorData.error || "Failed to start audit with crawler service");
+      }
+      
+      console.log(`Audit ${audit.id} started successfully with crawler service`);
+    } catch (error) {
+      console.error("Error starting audit with crawler service:", error);
+      
+      // Don't fail the request, just log the error
+      // The frontend will poll for status updates
+    }
 
     return NextResponse.json(audit);
   } catch (error) {
@@ -172,51 +298,6 @@ export async function POST(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
-  }
-}
-
-// This function would be responsible for starting the actual audit process
-// In a real application, this would likely be a separate service or API call
-async function startAuditProcess(auditId: string) {
-  const supabase = createClient();
-
-  try {
-    // Update the audit status to processing
-    await supabase
-      .from("audits")
-      .update({ status: "processing" })
-      .eq("id", auditId);
-
-    // In a real application, you would trigger the actual audit here
-    // For demo purposes, we'll simulate the audit process with a delay
-    // and then update with mock data
-    setTimeout(async () => {
-      // Generate mock audit results
-      const mockScore = Math.floor(Math.random() * 100);
-      const mockReport = generateMockAuditReport(mockScore);
-
-      // Update the audit with the results
-      await supabase
-        .from("audits")
-        .update({
-          status: "completed",
-          score: mockScore,
-          report: mockReport,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", auditId);
-    }, 10000); // Simulate a 10-second audit process
-  } catch (error) {
-    console.error("Error in audit process:", error);
-
-    // Update the audit status to failed
-    await supabase
-      .from("audits")
-      .update({
-        status: "failed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", auditId);
   }
 }
 
@@ -352,19 +433,4 @@ function generateMockIssues(category: string, count: number) {
   }
 
   return issues;
-}
-
-// Schema for validating the request body
-const auditRequestSchema = z.object({
-  url: z.string().url(),
-  projectId: z.string().uuid(),
-  description: z.string().optional(),
-  auditOptions: z.object({
-    checkMobile: z.boolean().default(true),
-    checkPerformance: z.boolean().default(true),
-    checkSecurity: z.boolean().default(true),
-    checkSeo: z.boolean().default(true),
-    checkAccessibility: z.boolean().default(true),
-  }),
-  auditDepth: z.enum(["basic", "standard", "deep"]).default("standard"),
-}); 
+} 

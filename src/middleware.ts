@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { createMiddlewareClient } from '@/lib/supabase/middleware-client'
 
 export async function middleware(request: NextRequest) {
   console.log("Middleware executing for URL:", request.url);
@@ -21,35 +21,7 @@ export async function middleware(request: NextRequest) {
     console.log("Auth cookie preview:", authCookie.substring(0, 20) + "...");
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          const cookie = request.cookies.get(name)?.value;
-          console.log(`Getting cookie ${name}:`, cookie ? "Found" : "Not found");
-          return cookie;
-        },
-        set(name: string, value: string, options: any) {
-          console.log(`Setting cookie ${name}:`, value ? value.substring(0, 15) + "..." : "empty");
-          res.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: any) {
-          console.log(`Removing cookie ${name}`);
-          res.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-        },
-      },
-    }
-  )
+  const supabase = createMiddlewareClient(request, res)
 
   // Get the session and log all cookies for debugging
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -69,6 +41,19 @@ export async function middleware(request: NextRequest) {
   }
   
   const url = new URL(request.url)
+
+  // Check for debug mode
+  const isDebugMode = url.searchParams.get('debug') === 'true';
+  if (isDebugMode && session) {
+    console.log("Debug mode enabled, skipping redirects");
+    return res;
+  }
+
+  // Special handling for the white-label page (bypass redirection to dashboard)
+  if (url.pathname === '/dashboard/white-label' && url.searchParams.get('debug') === 'true') {
+    console.log("White label debug mode enabled, bypassing redirects");
+    return res;
+  }
 
   // Protected routes
   const protectedRoutes = [

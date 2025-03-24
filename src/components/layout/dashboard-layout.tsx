@@ -16,13 +16,17 @@ import {
   Bell, 
   CheckSquare,
   Palette,
-  Lock
+  Lock,
+  MapPin,
+  CreditCard
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { checkWhiteLabelAccess } from "@/services/white-label"
 import { Toaster } from "@/components/ui/toaster"
+import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown"
+import { ProfileDropdown } from "@/components/profile/profile-dropdown"
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -38,8 +42,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   useEffect(() => {
     async function checkAccess() {
       try {
-        const hasAccess = await checkWhiteLabelAccess()
-        setHasWhiteLabelAccess(hasAccess)
+        console.log("DashboardLayout - Current pathname:", pathname);
+        
+        // Only check white label access if we're on a relevant page
+        if (pathname === "/dashboard/white-label" || pathname.startsWith("/dashboard/white")) {
+          console.log("DashboardLayout - On white label page, checking access");
+          const hasAccess = await checkWhiteLabelAccess();
+          console.log("DashboardLayout - White label access result:", hasAccess);
+          setHasWhiteLabelAccess(hasAccess);
+        }
       } catch (error) {
         console.error("Error checking white label access:", error)
       } finally {
@@ -48,7 +59,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
     
     checkAccess()
-  }, [])
+  }, [pathname])
   
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen)
@@ -67,6 +78,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Competitors", href: "/competitors", icon: Users },
     { name: "To-dos", href: "/todos", icon: CheckSquare },
     { name: "Reports", href: "/reports", icon: BarChart3 },
+    { name: "Lead Finder", href: "/lead-finder", icon: MapPin, enterpriseOnly: true },
   ]
   
   return (
@@ -92,8 +104,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-col h-full">
           {/* Sidebar header */}
           <div className="flex items-center justify-center h-16 px-4 border-b">
-            <Link href="/dashboard" className="text-2xl font-bold">
-              LilySEO
+            <Link href="/dashboard" className="flex items-center">
+              <img 
+                src="/Logos/LilySEO_logo_white.png" 
+                alt="LilySEO Logo" 
+                className="h-12 w-auto" 
+              />
             </Link>
           </div>
           
@@ -113,6 +129,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 >
                   <item.icon className="mr-3 h-5 w-5" />
                   {item.name}
+                  {!isLoading && item.enterpriseOnly && (
+                    <Lock className="ml-2 h-4 w-4 text-muted-foreground" />
+                  )}
                 </Link>
               )
             })}
@@ -122,12 +141,31 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="p-4 border-t">
             <div className="space-y-2">
               <Link
-                href="/dashboard/white-label"
+                href="/dashboard/subscription"
+                className={`flex items-center px-4 py-2 text-sm rounded-md ${
+                  pathname === "/dashboard/subscription"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground hover:bg-muted"
+                }`}
+              >
+                <CreditCard className="mr-3 h-5 w-5" />
+                Subscription
+              </Link>
+              <Link
+                href="/dashboard/white-label?debug=true"
                 className={`flex items-center px-4 py-2 text-sm rounded-md ${
                   pathname === "/dashboard/white-label"
                     ? "bg-primary text-primary-foreground"
                     : "text-foreground hover:bg-muted"
                 }`}
+                onClick={(e) => {
+                  // Prevent default behavior
+                  e.preventDefault();
+                  
+                  // Use router.push to navigate and ensure we get a full page reload
+                  const url = '/dashboard/white-label?debug=true';
+                  window.location.href = url; // Force full page reload
+                }}
               >
                 <Palette className="mr-3 h-5 w-5" />
                 White Label
@@ -165,13 +203,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 border-b bg-card">
           <div className="flex-1 lg:flex-none"></div>
           <div className="flex items-center space-x-4">
-            <Button variant="outline" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-destructive"></span>
-            </Button>
-            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-              <span className="text-xs font-medium">JD</span>
-            </div>
+            <NotificationsDropdown />
+            <ProfileDropdown />
           </div>
         </header>
         

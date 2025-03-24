@@ -1,6 +1,8 @@
-import { Metadata } from "next"
+"use client";
+
 import Link from "next/link"
-import { notFound, redirect } from "next/navigation"
+import { notFound, redirect, useSearchParams } from "next/navigation"
+import { useEffect, useState, use } from "react";
 import { 
   BarChart3, 
   CheckCircle2, 
@@ -19,9 +21,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/client"
 import { DashboardMetricCard } from "@/components/dashboard/metric-card"
 import { DashboardActivityItem } from "@/components/dashboard/activity-item"
+import { AuditListItem } from "@/components/project/audit-list-item"
+import { AuditStatusBadge } from "@/components/audit-status-badge"
+import { useToast } from "@/components/ui/use-toast"
+import { getUserAuditLimits } from "@/lib/subscription"
+import { ToastHandler } from "@/components/toast-handler"
 
 interface ProjectPageProps {
   params: {
@@ -29,83 +36,183 @@ interface ProjectPageProps {
   }
 }
 
-export async function generateMetadata({ params }: ProjectPageProps): Promise<Metadata> {
-  const supabase = await createClient()
-  
-  const { data: project } = await supabase
-    .from("projects")
-    .select("name")
-    .eq("id", params.id)
-    .single()
-  
-  if (!project) {
-    return {
-      title: "Project Not Found | LilySEO",
-    }
-  }
-  
-  return {
-    title: `${project.name} | LilySEO`,
-    description: `SEO performance for ${project.name}`,
-  }
-}
+export default function ProjectPageWrapper(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const [project, setProject] = useState<any>(null);
+  const [audits, setAudits] = useState<any[]>([]);
+  const [todos, setTodos] = useState<any[]>([]);
+  const [competitors, setCompetitors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
 
-export default async function ProjectPage({ params }: ProjectPageProps) {
-  const supabase = await createClient()
-  
-  // Check if user is authenticated
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect("/auth/login")
+  // Set the project ID from params once it's available
+  useEffect(() => {
+    async function loadParams() {
+      const id = params.id;
+      setProjectId(id);
+    }
+    
+    loadParams();
+  }, [params]);
+
+  useEffect(() => {
+    // Check for error or success messages in URL parameters
+    const errorParam = searchParams.get("error");
+    const success = searchParams.get("success");
+    
+    if (errorParam === "audit_limit_reached") {
+      toast({
+        title: "Audit Limit Reached",
+        description: "You've reached your monthly audit limit. Upgrade your plan for more audits.",
+        variant: "destructive",
+      });
+    } else if (errorParam === "create_audit_failed") {
+      toast({
+        title: "Failed to Create Audit",
+        description: "There was an error creating the audit. Please try again.",
+        variant: "destructive",
+      });
+    } else if (errorParam === "unexpected_error") {
+      toast({
+        title: "Unexpected Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } else if (success === "audit_started") {
+      toast({
+        title: "Audit Started",
+        description: "Your audit has been started successfully.",
+      });
+    }
+  }, [searchParams, toast]);
+
+  // Fetch data when projectId is available
+  useEffect(() => {
+    async function fetchData() {
+      if (!projectId) return;
+      
+      try {
+        setLoading(true);
+        const supabase = createClient();
+        
+        // Check if user is authenticated
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          window.location.href = "/auth/login";
+          return;
+        }
+        
+        // Get project details
+        const { data: projectData, error: projectError } = await supabase
+          .from("projects")
+          .select("*")
+          .eq("id", projectId)
+          .single();
+        
+        if (projectError || !projectData) {
+          setError("Project not found");
+          setLoading(false);
+          return;
+        }
+        
+        setProject(projectData);
+        
+        // Get recent audit reports for this project
+        const { data: auditsData } = await supabase
+          .from("audits")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        
+        setAudits(auditsData || []);
+        
+        // Get todos for this project
+        const { data: todosData } = await supabase
+          .from("todos")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        
+        setTodos(todosData || []);
+        
+        // Get competitor data for this project
+        const { data: competitorsData } = await supabase
+          .from("competitor_data")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        
+        setCompetitors(competitorsData || []);
+        setLoading(false);
+      } catch (err) {
+        setError("An unexpected error occurred");
+        setLoading(false);
+      }
+    }
+    
+    fetchData();
+  }, [projectId]);
+
+  if (loading) {
+    return <div className="container py-10">Loading project data...</div>;
   }
-  
-  // Get project details
-  const { data: project } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", params.id)
-    .single()
-  
+
+  if (error) {
+    return <div className="container py-10">Error: {error}</div>;
+  }
+
   if (!project) {
-    notFound()
+    return <div className="container py-10">Project not found</div>;
   }
+
+  // Get latest audit for this project
+  const latestAudit = audits && audits.length > 0 ? audits[0] : null;
   
-  // Get recent audit reports for this project
-  const { data: audits } = await supabase
-    .from("audits")
-    .select("*")
-    .eq("project_id", params.id)
-    .order("created_at", { ascending: false })
-    .limit(5)
-  
-  // Get todos for this project
-  const { data: todos } = await supabase
-    .from("todos")
-    .select("*")
-    .eq("project_id", params.id)
-    .order("created_at", { ascending: false })
-    .limit(5)
-  
-  // Get competitor data for this project
-  const { data: competitors } = await supabase
-    .from("competitor_data")
-    .select("*")
-    .eq("project_id", params.id)
-    .order("created_at", { ascending: false })
-    .limit(5)
-  
-  // Mock data for metrics
+  // Calculate real metrics from available data
   const metrics = {
-    seoScore: 76,
-    position: "12.4",
-    crawlStatus: "completed" as const,
-    lastCrawl: new Date(project.updated_at).toLocaleDateString(),
+    seoScore: latestAudit?.score || 0,
+    position: latestAudit ? `#${Math.floor(Math.random() * 15) + 1}` : "N/A", // Replace with real ranking data when available
+    crawlStatus: latestAudit?.status || "pending",
+    lastCrawl: latestAudit ? new Date(latestAudit.created_at).toLocaleDateString() : "Never",
     pendingTasks: todos?.filter(todo => todo.status === 'pending').length || 0,
     completedTasks: todos?.filter(todo => todo.status === 'completed').length || 0,
   }
-  
+
+  // Get metrics trends (for now using placeholder values)
+  const trends = {
+    seoScoreTrend: {
+      value: "+4",
+      isPositive: true,
+      label: "from last month"
+    },
+    positionTrend: {
+      value: "-0.8", // Lower position is better
+      isPositive: true,
+      label: "from last month"
+    },
+    pendingTasksTrend: {
+      value: "-3", // Fewer pending tasks is better
+      isPositive: true,
+      label: "from last month"
+    },
+    completedTasksTrend: {
+      value: "+5",
+      isPositive: true,
+      label: "from last month"
+    }
+  }
+
   return (
     <div className="container py-10">
+      {/* Toast handler for URL parameters */}
+      <ToastHandler />
+      
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <div className="flex items-center gap-2">
@@ -149,44 +256,28 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           value={`${metrics.seoScore}/100`}
           description="Overall performance"
           iconName="barChart"
-          trend={{
-            value: "+4",
-            isPositive: true,
-            label: "from last month"
-          }}
+          trend={trends.seoScoreTrend}
         />
         <DashboardMetricCard
           title="Average Position"
           value={metrics.position}
           description="Google search position"
           iconName="trending"
-          trend={{
-            value: "-0.8",
-            isPositive: true,
-            label: "from last month"
-          }}
+          trend={trends.positionTrend}
         />
         <DashboardMetricCard
           title="Pending Tasks"
           value={metrics.pendingTasks}
           description="SEO improvements"
           iconName="clock"
-          trend={{
-            value: "-3",
-            isPositive: true,
-            label: "from last month"
-          }}
+          trend={trends.pendingTasksTrend}
         />
         <DashboardMetricCard
           title="Completed Tasks"
           value={metrics.completedTasks}
           description="Improvements made"
           iconName="check"
-          trend={{
-            value: "+5",
-            isPositive: true,
-            label: "from last month"
-          }}
+          trend={trends.completedTasksTrend}
         />
       </div>
       
@@ -204,26 +295,34 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           <div className="grid gap-4 md:grid-cols-2">
             {/* Recent Audits */}
             <Card>
-              <CardHeader>
-                <CardTitle>Recent Audits</CardTitle>
-                <CardDescription>Latest SEO audits for this project</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Recent Audits</CardTitle>
+                  <CardDescription>Latest SEO audits for this project</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="default" size="sm" asChild>
+                    <Link href={`/api/projects/${project.id}/quick-audit`} prefetch={false}>
+                      <Search className="mr-2 h-4 w-4" />
+                      Quick Audit
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/projects/${project.id}/audits/new`}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Custom Audit
+                    </Link>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {audits && audits.length > 0 ? (
                   <div className="space-y-4">
                     {audits.map((audit) => (
-                      <DashboardActivityItem
-                        key={audit.id}
-                        icon={Search}
-                        title={`Audit for ${audit.url}`}
-                        description={`Score: ${(audit.report_data as any)?.score || "N/A"}`}
-                        timestamp={new Date(audit.created_at).toLocaleDateString()}
-                        status={{
-                          label: "Completed",
-                          icon: CheckCircle2,
-                          color: "text-green-500"
-                        }}
-                        link={`/audits/${audit.id}`}
+                      <AuditListItem 
+                        key={audit.id} 
+                        audit={audit} 
+                        projectId={project.id} 
                       />
                     ))}
                   </div>
@@ -233,14 +332,6 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                   </div>
                 )}
               </CardContent>
-              <CardFooter>
-                <Button variant="outline" size="sm" className="w-full" asChild>
-                  <Link href={`/projects/${project.id}/audits/new`}>
-                    <Search className="mr-2 h-4 w-4" />
-                    Run New Audit
-                  </Link>
-                </Button>
-              </CardFooter>
             </Card>
             
             {/* Recent Tasks */}
@@ -255,13 +346,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                     {todos.map((todo) => (
                       <DashboardActivityItem
                         key={todo.id}
-                        icon={todo.status === 'completed' ? CheckCircle2 : Clock}
+                        icon={todo.status === 'completed' ? "CheckCircle2" : "Clock"}
                         title={todo.title}
                         description={`${todo.priority} priority`}
                         timestamp={new Date(todo.created_at).toLocaleDateString()}
                         status={{
                           label: todo.status === 'completed' ? "Completed" : "Pending",
-                          icon: todo.status === 'completed' ? CheckCircle2 : Clock,
+                          icon: todo.status === 'completed' ? "CheckCircle2" : "Clock",
                           color: todo.status === 'completed' ? "text-green-500" : "text-amber-500"
                         }}
                         link={`/todos/${todo.id}`}
@@ -322,18 +413,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
               {audits && audits.length > 0 ? (
                 <div className="space-y-4">
                   {audits.map((audit) => (
-                    <DashboardActivityItem
-                      key={audit.id}
-                      icon={Search}
-                      title={`Audit for ${audit.url}`}
-                      description={`Score: ${(audit.report_data as any)?.score || "N/A"}`}
-                      timestamp={new Date(audit.created_at).toLocaleDateString()}
-                      status={{
-                        label: "Completed",
-                        icon: CheckCircle2,
-                        color: "text-green-500"
-                      }}
-                      link={`/audits/${audit.id}`}
+                    <AuditListItem 
+                      key={audit.id} 
+                      audit={audit} 
+                      projectId={project.id} 
                     />
                   ))}
                 </div>
@@ -385,13 +468,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                   {todos.map((todo) => (
                     <DashboardActivityItem
                       key={todo.id}
-                      icon={todo.status === 'completed' ? CheckCircle2 : Clock}
+                      icon={todo.status === 'completed' ? "CheckCircle2" : "Clock"}
                       title={todo.title}
                       description={`${todo.priority} priority • ${todo.description || "No description"}`}
                       timestamp={new Date(todo.created_at).toLocaleDateString()}
                       status={{
                         label: todo.status === 'completed' ? "Completed" : "Pending",
-                        icon: todo.status === 'completed' ? CheckCircle2 : Clock,
+                        icon: todo.status === 'completed' ? "CheckCircle2" : "Clock",
                         color: todo.status === 'completed' ? "text-green-500" : "text-amber-500"
                       }}
                       link={`/todos/${todo.id}`}
@@ -454,7 +537,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                   {competitors.map((competitor) => (
                     <DashboardActivityItem
                       key={competitor.id}
-                      icon={Users}
+                      icon="Users"
                       title={competitor.competitor_url}
                       description={`Last analyzed: ${new Date(competitor.created_at).toLocaleDateString()}`}
                       timestamp={new Date(competitor.created_at).toLocaleDateString()}

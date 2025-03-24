@@ -13,16 +13,30 @@ export const createClient = () => {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("⚠️ CRITICAL: Missing Supabase environment variables!");
+    console.error(`URL defined: ${!!supabaseUrl}, Key defined: ${!!supabaseAnonKey}`);
     throw new Error('Missing Supabase environment variables')
   }
 
-  console.log("Creating browser Supabase client with URL:", supabaseUrl);
-  
-  // Use createBrowserClient instead of createClient for better cookie handling
-  supabaseInstance = createBrowserClient<Database>(
-    supabaseUrl,
-    supabaseAnonKey
-  );
-  
-  return supabaseInstance;
+  try {
+    console.log("🔌 Creating new browser Supabase client with URL:", supabaseUrl);
+    
+    // Use createBrowserClient instead of createClient for better cookie handling
+    supabaseInstance = createBrowserClient<Database>(
+      supabaseUrl,
+      supabaseAnonKey
+    );
+    
+    // Test the connection
+    supabaseInstance.auth.getSession().then(({ data }) => {
+      console.log("✅ Supabase client session check:", data.session ? "Active session" : "No active session");
+    }).catch(err => {
+      console.error("❌ Supabase client session check failed:", err);
+    });
+    
+    return supabaseInstance;
+  } catch (error) {
+    console.error("❌ Failed to create Supabase client:", error);
+    throw error;
+  }
 } 

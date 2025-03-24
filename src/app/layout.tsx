@@ -12,6 +12,9 @@ console.log("GeistMono variable:", GeistMono.variable);
 export const metadata: Metadata = {
   title: "LilySEO - Professional SEO Analysis",
   description: "Comprehensive SEO analysis and optimization tools",
+  icons: {
+    icon: '/Logos/LilySEO_logo_mark.png',
+  },
 };
 
 export default function RootLayout({

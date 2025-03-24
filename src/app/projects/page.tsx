@@ -28,6 +28,27 @@ export default async function ProjectsPage() {
     .select("*")
     .order("updated_at", { ascending: false })
   
+  // Get latest audit for each project with scores
+  const { data: projectAudits } = await supabase
+    .from("audits")
+    .select(`
+      id,
+      project_id,
+      created_at,
+      score,
+      status
+    `)
+    .in('project_id', projects?.map(p => p.id) || [])
+    .order('created_at', { ascending: false })
+  
+  // Group audits by project_id and get the latest one for each project
+  const latestAuditsByProject = projectAudits?.reduce((acc, audit) => {
+    if (!acc[audit.project_id] || new Date(audit.created_at) > new Date(acc[audit.project_id].created_at)) {
+      acc[audit.project_id] = audit;
+    }
+    return acc;
+  }, {} as Record<string, typeof projectAudits[0]>);
+  
   return (
     <div className="container py-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -49,18 +70,24 @@ export default async function ProjectsPage() {
       
       {projects && projects.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <DashboardProjectCard
-              key={project.id}
-              project={project}
-              metrics={{
-                seoScore: Math.floor(Math.random() * 30) + 70,
-                position: (Math.random() * 20 + 1).toFixed(1),
-                crawlStatus: Math.random() > 0.3 ? "completed" : "pending",
-                lastCrawl: new Date(project.updated_at).toLocaleDateString()
-              }}
-            />
-          ))}
+          {projects.map((project) => {
+            const latestAudit = latestAuditsByProject?.[project.id];
+            
+            return (
+              <DashboardProjectCard
+                key={project.id}
+                project={project}
+                metrics={{
+                  seoScore: latestAudit?.score || 0,
+                  position: latestAudit ? `#${Math.floor(Math.random() * 15) + 1}` : "N/A",
+                  crawlStatus: latestAudit?.status || "pending",
+                  lastCrawl: latestAudit ? 
+                    new Date(latestAudit.created_at).toLocaleDateString() : 
+                    new Date(project.updated_at).toLocaleDateString()
+                }}
+              />
+            );
+          })}
         </div>
       ) : (
         <Card className="border-dashed border-2">

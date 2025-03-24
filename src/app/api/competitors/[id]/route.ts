@@ -4,14 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * GET handler for retrieving a specific competitor analysis
  * @param request The incoming request
- * @param params The route parameters
+ * @param context The route context with params
  * @returns A response with the competitor analysis
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, context: { params: { id: string } }) {
   try {
+    const id = context.params.id;
     const supabase = await createClient();
     
     // Get user data
@@ -34,7 +32,7 @@ export async function GET(
           url
         )
       `)
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single();
     
@@ -64,14 +62,12 @@ export async function GET(
 /**
  * DELETE handler for deleting a specific competitor analysis
  * @param request The incoming request
- * @param params The route parameters
+ * @param context The route context with params
  * @returns A response indicating success or failure
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
   try {
+    const id = context.params.id;
     const supabase = await createClient();
     
     // Get user data
@@ -87,7 +83,7 @@ export async function DELETE(
     const { data: competitorData, error: competitorError } = await supabase
       .from("competitor_data")
       .select("id")
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single();
     
@@ -102,7 +98,7 @@ export async function DELETE(
     const { error } = await supabase
       .from("competitor_data")
       .delete()
-      .eq("id", params.id);
+      .eq("id", id);
     
     if (error) {
       return NextResponse.json(

@@ -27,14 +27,13 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
     url: "https://",
     description: "",
     crawlFrequency: "monthly",
-    crawlDepth: 3,
+    maxPages: 50,
     targetKeywords: "",
     competitors: [] as { id: string; name: string; url: string }[],
     keywordGroups: [] as { id: string; name: string; keywords: string[] }[],
     advancedSettings: {
       excludeUrls: "",
-      followRobotsTxt: true,
-      maxPages: 100
+      followRobotsTxt: true
     }
   })
   const [subscription, setSubscription] = useState<{
@@ -98,7 +97,7 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
       if (currentStep < totalSteps) {
         setCurrentStep(currentStep + 1)
       } else {
-        onComplete(formData)
+        handleSubmit()
       }
     }
   }
@@ -149,6 +148,37 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
     }
     
     handleInputChange("crawlFrequency", value)
+  }
+
+  const handleSubmit = () => {
+    // Validate the form
+    if (!formData.name) {
+      setErrors({ name: "Project name is required" })
+      return
+    }
+    
+    if (!formData.url) {
+      setErrors({ url: "URL is required" })
+      return
+    }
+    
+    // Format the data for submission
+    const formattedData = {
+      name: formData.name,
+      url: formData.url,
+      description: formData.description,
+      crawlFrequency: formData.crawlFrequency,
+      maxPages: formData.maxPages,
+      targetKeywords: formData.targetKeywords,
+      competitors: formData.competitors,
+      keywordGroups: formData.keywordGroups,
+      advancedOptions: true,
+      excludeUrls: formData.advancedSettings.excludeUrls,
+      followRobotsTxt: formData.advancedSettings.followRobotsTxt,
+      industry: ""
+    }
+    
+    onComplete(formattedData)
   }
 
   const renderStepContent = () => {
@@ -221,118 +251,93 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
               
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="block text-sm font-medium">Crawl Frequency</label>
+                  <label htmlFor="crawlFrequency" className="block text-sm font-medium">Crawl Frequency</label>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
-                        <p>How often your website will be automatically crawled for SEO analysis. Higher frequencies are available on Pro and Enterprise plans.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="monthly"
-                      name="crawlFrequency"
-                      value="monthly"
-                      checked={formData.crawlFrequency === "monthly"}
-                      onChange={() => handleInputChange("crawlFrequency", "monthly")}
-                      className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <label htmlFor="monthly" className="text-sm font-normal">
-                      Monthly <Badge variant="outline" className="ml-2">Free</Badge>
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="weekly"
-                      name="crawlFrequency"
-                      value="weekly"
-                      checked={formData.crawlFrequency === "weekly"}
-                      onChange={() => handleFrequencyChange("weekly")}
-                      disabled={!subscription.isPro && !subscription.isEnterprise}
-                      className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <label htmlFor="weekly" className={`text-sm font-normal ${!subscription.isPro && !subscription.isEnterprise ? 'text-muted-foreground' : ''}`}>
-                      Weekly <Badge variant="outline" className="ml-2">Pro & Enterprise</Badge>
-                    </label>
-                    {!subscription.isPro && !subscription.isEnterprise && (
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="text-primary p-0 h-auto"
-                        onClick={() => setShowUpgradePrompt(true)}
-                      >
-                        Upgrade
-                      </Button>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="daily"
-                      name="crawlFrequency"
-                      value="daily"
-                      checked={formData.crawlFrequency === "daily"}
-                      onChange={() => handleFrequencyChange("daily")}
-                      disabled={!subscription.isEnterprise}
-                      className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <label htmlFor="daily" className={`text-sm font-normal ${!subscription.isEnterprise ? 'text-muted-foreground' : ''}`}>
-                      Daily <Badge variant="outline" className="ml-2">Enterprise Only</Badge>
-                    </label>
-                    {!subscription.isEnterprise && (
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="text-primary p-0 h-auto"
-                        onClick={() => setShowUpgradePrompt(true)}
-                      >
-                        Upgrade
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label htmlFor="crawlDepth" className="block text-sm font-medium">Crawl Depth</label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>Crawl depth determines how many levels of links the crawler will follow from your homepage. Higher values will analyze more pages but take longer.</p>
+                        <p>How often your website will be automatically crawled and analyzed.</p>
+                        <p className="mt-2 font-semibold">Tier Limits:</p>
+                        <ul className="list-disc pl-4 mt-1">
+                          <li>Free: Monthly only</li>
+                          <li>Pro: Weekly available</li>
+                          <li>Enterprise: Daily available</li>
+                        </ul>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
                 
                 <select
-                  id="crawlDepth"
-                  value={formData.crawlDepth}
-                  onChange={(e) => handleInputChange("crawlDepth", parseInt(e.target.value))}
+                  id="crawlFrequency"
+                  value={formData.crawlFrequency}
+                  onChange={(e) => handleFrequencyChange(e.target.value)}
                   className="w-full px-3 py-2 border border-input rounded-md"
                 >
-                  <option value="1">1 - Homepage only</option>
-                  <option value="2">2 - Homepage + direct links</option>
-                  <option value="3">3 - Standard depth (recommended)</option>
-                  <option value="4">4 - Deep crawl</option>
-                  <option value="5">5 - Very deep crawl</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="weekly" disabled={!subscription.isPro && !subscription.isEnterprise}>Weekly (Pro+)</option>
+                  <option value="daily" disabled={!subscription.isEnterprise}>Daily (Enterprise)</option>
                 </select>
                 <p className="text-sm text-muted-foreground">
-                  How many levels of links to follow from your homepage
+                  How often your website will be automatically crawled
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="maxPages" className="block text-sm font-medium">Maximum Pages to Crawl</label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>The maximum number of pages that will be crawled and analyzed.</p>
+                        <p className="mt-2 font-semibold">Tier Limits:</p>
+                        <ul className="list-disc pl-4 mt-1">
+                          <li>Free: 50 pages max</li>
+                          <li>Pro: 500 pages max</li>
+                          <li>Enterprise: Unlimited</li>
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                
+                <input
+                  id="maxPages"
+                  type="number"
+                  min="1"
+                  max={subscription.isEnterprise ? 10000 : subscription.isPro ? 500 : 50}
+                  value={formData.maxPages}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    const maxAllowed = subscription.isEnterprise ? 10000 : subscription.isPro ? 500 : 50;
+                    if (value > maxAllowed) {
+                      handleInputChange("maxPages", maxAllowed);
+                      // Show a message about the limit
+                      alert(`Maximum pages limited to ${maxAllowed} on your current plan`);
+                    } else {
+                      handleInputChange("maxPages", value);
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-input rounded-md"
+                />
+                <p className="text-sm text-muted-foreground">
+                  {subscription.tier === 'free' && (
+                    <span className="text-amber-600 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      Limited to 50 pages on Free plan
+                    </span>
+                  )}
+                  {subscription.tier === 'pro' && (
+                    <span>Limited to 500 pages on Pro plan</span>
+                  )}
+                  {subscription.tier === 'enterprise' && (
+                    <span>Unlimited pages available</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -379,24 +384,6 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
                       Follow the rules in the website's robots.txt file
                     </p>
                   </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label htmlFor="maxPages" className="block text-sm font-medium">
-                    Maximum Pages to Crawl
-                  </label>
-                  <input
-                    id="maxPages"
-                    type="number"
-                    min="1"
-                    max="10000"
-                    value={formData.advancedSettings.maxPages}
-                    onChange={(e) => handleAdvancedSettingsChange("maxPages", parseInt(e.target.value))}
-                    className="w-full px-3 py-2 border border-input rounded-md"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Limit the number of pages to crawl (1-10,000)
-                  </p>
                 </div>
               </div>
             )}

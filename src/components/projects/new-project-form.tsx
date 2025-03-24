@@ -52,13 +52,12 @@ const formSchema = z.object({
   url: urlSchema,
   description: z.string().optional(),
   crawlFrequency: z.enum(["monthly", "weekly", "daily"]).default("monthly"),
-  crawlDepth: z.coerce.number().int().min(1).max(10).default(3),
   targetKeywords: z.string().optional(),
   competitors: z.string().optional(),
   advancedOptions: z.boolean().default(false),
   excludeUrls: z.string().optional(),
   followRobotsTxt: z.boolean().default(true),
-  maxPages: z.coerce.number().int().min(1).max(10000).default(100),
+  maxPages: z.coerce.number().int().min(1).max(10000).default(50),
   industry: z.string().optional(),
 });
 
@@ -118,13 +117,12 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
       url: "https://",
       description: "",
       crawlFrequency: "monthly",
-      crawlDepth: 3,
       targetKeywords: "",
       competitors: "",
       advancedOptions: false,
       excludeUrls: "",
       followRobotsTxt: true,
-      maxPages: 100,
+      maxPages: 50,
       industry: "",
     },
   });
@@ -249,32 +247,32 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
       } : null;
       
       // Create the project
-      const { data, error: createError } = await supabase
-        .from("projects")
+      const { data: project, error: projectError } = await supabase
+        .from('projects')
         .insert({
           user_id: userId,
           name: values.name,
           url: values.url,
-          description: values.description || null,
+          description: values.description,
+          industry: values.industry,
+          settings: {
+            keywordGroups: keywordGroups.length > 0 ? keywordGroups : null,
+            advancedOptions: values.advancedOptions ? {
+              excludeUrls: values.excludeUrls,
+              followRobotsTxt: values.followRobotsTxt
+            } : null
+          },
           status: "active",
           crawl_frequency: values.crawlFrequency,
-          crawl_depth: values.crawlDepth,
+          max_pages: values.maxPages,
           keywords: keywordsArray.length > 0 ? keywordsArray : null,
           competitors: competitorsArray.length > 0 ? competitorsArray : null,
-          industry: values.industry || null,
-          settings: {
-            advancedOptions,
-            keywordGroups: keywordGroups.length > 0 ? keywordGroups.map(g => ({
-              name: g.name,
-              keywords: g.keywords
-            })) : null
-          }
         })
-        .select("id")
-        .single()
+        .select()
+        .single();
       
-      if (createError) {
-        throw createError;
+      if (projectError) {
+        throw projectError;
       }
       
       setSuccess(true);
@@ -297,7 +295,6 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
     form.setValue('url', data.url);
     form.setValue('description', data.description);
     form.setValue('crawlFrequency', data.crawlFrequency);
-    form.setValue('crawlDepth', data.crawlDepth);
     form.setValue('targetKeywords', data.targetKeywords);
     
     // Set competitors and keyword groups
@@ -388,7 +385,6 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
       url: values.url,
       description: values.description,
       crawlFrequency: values.crawlFrequency,
-      crawlDepth: values.crawlDepth,
       targetKeywords: values.targetKeywords,
       competitors,
       keywordGroups,
@@ -414,7 +410,6 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
     
     form.setValue('description', templateData.description || '')
     form.setValue('crawlFrequency', templateData.settings?.crawl_frequency || 'monthly')
-    form.setValue('crawlDepth', templateData.settings?.crawl_depth || 3)
     form.setValue('targetKeywords', templateData.settings?.keywords ? templateData.settings.keywords.join(', ') : '')
     form.setValue('industry', templateData.industry || '')
     
@@ -720,49 +715,6 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
                   </FormItem>
                 )}
               />
-              
-              <FormField
-                control={form.control}
-                name="crawlDepth"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Crawl Depth</FormLabel>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p>Crawl depth determines how many levels of links the crawler will follow from your homepage. Higher values will analyze more pages but take longer.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <FormControl>
-                      <Select
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value.toString()}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select crawl depth" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">1 - Homepage only</SelectItem>
-                          <SelectItem value="2">2 - Homepage + direct links</SelectItem>
-                          <SelectItem value="3">3 - Standard depth (recommended)</SelectItem>
-                          <SelectItem value="4">4 - Deep crawl</SelectItem>
-                          <SelectItem value="5">5 - Very deep crawl</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription>
-                      How many levels of links to follow from your homepage
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
             
             <Tabs defaultValue="basic" className="w-full">
@@ -907,27 +859,68 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
                     )}
                   />
                   
-                  <FormField
-                    control={form.control}
-                    name="maxPages"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Maximum Pages to Crawl</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={10000}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Limit the number of pages to crawl (1-10,000)
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <FormField
+                      control={form.control}
+                      name="maxPages"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center gap-2">
+                            <FormLabel>Maximum Pages to Crawl</FormLabel>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p>The maximum number of pages that will be crawled and analyzed.</p>
+                                  <p className="mt-2 font-semibold">Tier Limits:</p>
+                                  <ul className="list-disc pl-4 mt-1">
+                                    <li>Free: 50 pages max</li>
+                                    <li>Pro: 500 pages max</li>
+                                    <li>Enterprise: Unlimited</li>
+                                  </ul>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={subscription.isEnterprise ? 10000 : subscription.isPro ? 500 : 50}
+                              {...field}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value);
+                                const maxAllowed = subscription.isEnterprise ? 10000 : subscription.isPro ? 500 : 50;
+                                if (value > maxAllowed) {
+                                  field.onChange(maxAllowed);
+                                  toast.info(`Maximum pages limited to ${maxAllowed} on your current plan`);
+                                } else {
+                                  field.onChange(value);
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {subscription.tier === 'free' && (
+                              <span className="text-amber-600 flex items-center gap-1">
+                                <AlertCircle className="h-4 w-4" />
+                                Limited to 50 pages on Free plan
+                              </span>
+                            )}
+                            {subscription.tier === 'pro' && (
+                              <span>Limited to 500 pages on Pro plan</span>
+                            )}
+                            {subscription.tier === 'enterprise' && (
+                              <span>Unlimited pages available</span>
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
@@ -996,7 +989,6 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
                 })(),
                 competitors: competitors.map(c => c.url),
                 crawlFrequency: form.getValues('crawlFrequency') || "monthly",
-                crawlDepth: form.getValues('crawlDepth') || 3
               }}
               onApply={handleApplyRecommendation}
             />

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { 
   fetchWhiteLabelSettings, 
   saveWhiteLabelSettings, 
@@ -10,8 +10,8 @@ import {
 import { createClient } from '@/lib/supabase/client';
 
 // Mock the Supabase client
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: vi.fn()
+jest.mock('@/lib/supabase/client', () => ({
+  createClient: jest.fn()
 }));
 
 describe('White Label Service', () => {
@@ -23,20 +23,20 @@ describe('White Label Service', () => {
     
     // Setup mock Supabase client
     mockSupabase = {
-      from: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn(),
+      from: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      insert: jest.fn().mockReturnThis(),
+      update: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn(),
       storage: {
-        from: vi.fn().mockReturnThis(),
-        upload: vi.fn(),
-        getPublicUrl: vi.fn()
+        from: jest.fn().mockReturnThis(),
+        upload: jest.fn(),
+        getPublicUrl: jest.fn()
       },
       auth: {
-        getUser: vi.fn(),
-        getSession: vi.fn()
+        getUser: jest.fn(),
+        getSession: jest.fn()
       }
     };
     
@@ -44,7 +44,7 @@ describe('White Label Service', () => {
   });
   
   afterEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
   });
   
   describe('fetchWhiteLabelSettings', () => {
@@ -203,7 +203,7 @@ describe('White Label Service', () => {
       
       // Mock Date.now() to return a consistent value
       const originalDateNow = Date.now;
-      Date.now = vi.fn(() => 1234567890);
+      Date.now = jest.fn(() => 1234567890);
       
       const result = await uploadLogo(mockFile);
       

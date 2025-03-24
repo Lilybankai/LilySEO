@@ -30,7 +30,11 @@ export default async function AuthLayout({
       <div className="hidden lg:flex flex-1 flex-col justify-between p-12 bg-primary text-primary-foreground">
         <div className="flex items-center">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="text-2xl font-bold tracking-tight">LilySEO</span>
+            <img 
+              src="/Logos/LilySEO_logo_knockout.png" 
+              alt="LilySEO Logo" 
+              className="h-16 w-auto" 
+            />
           </Link>
         </div>
         
@@ -71,7 +75,13 @@ export default async function AuthLayout({
         </div>
         
         <div className="text-sm text-primary-foreground/60">
-          © {new Date().getFullYear()} LilySEO. All rights reserved.
+          © {new Date().getFullYear()} 
+          <img 
+            src="/Logos/LilySEO_logo_mark.png" 
+            alt="LilySEO" 
+            className="inline-block h-4 w-auto mx-1" 
+          /> 
+          All rights reserved.
         </div>
       </div>
     </div>

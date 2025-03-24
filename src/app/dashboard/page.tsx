@@ -23,7 +23,8 @@ import { createClient } from "@/lib/supabase/server"
 import { DashboardMetricCard } from "@/components/dashboard/metric-card"
 import { DashboardProjectCard } from "@/components/dashboard/project-card"
 import { DashboardActivityItem } from "@/components/dashboard/activity-item"
-import { Database } from "@/lib/supabase/database.types"
+import { Database, Json } from "@/lib/supabase/database.types"
+import { CrawlerServiceStatus } from "@/components/crawler-service-status"
 
 export const metadata: Metadata = {
   title: "Dashboard | LilySEO",
@@ -32,7 +33,7 @@ export const metadata: Metadata = {
 
 // Define types for the join results
 type AuditWithProject = Database["public"]["Tables"]["audits"]["Row"] & {
-  projects: { name: string } | null
+  projects: { name: string } | null;
 }
 
 type TodoWithProject = Database["public"]["Tables"]["todos"]["Row"] & {
@@ -41,6 +42,15 @@ type TodoWithProject = Database["public"]["Tables"]["todos"]["Row"] & {
 
 export default async function DashboardPage() {
   const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  if (!session) {
+    redirect("/auth/login")
+  }
+  
+  // Check if user is an admin
+  const isAdmin = session.user.email?.endsWith('@thelilybankagency.co.uk') || 
+                 session.user.email === 'carl@thelilybankagency.co.uk'
   
   // Get user data
   const { data: { user } } = await supabase.auth.getUser()
@@ -48,12 +58,33 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
   
-  // Get user's projects
+  // Get user's projects with more data
   const { data: projects } = await supabase
     .from("projects")
     .select("*")
     .order("updated_at", { ascending: false })
     .limit(4)
+  
+  // Get latest audit for each project with scores
+  const { data: projectAudits } = await supabase
+    .from("audits")
+    .select(`
+      id,
+      project_id,
+      created_at,
+      score,
+      status
+    `)
+    .in('project_id', projects?.map(p => p.id) || [])
+    .order('created_at', { ascending: false })
+  
+  // Group audits by project_id and get the latest one for each project
+  const latestAuditsByProject = projectAudits?.reduce((acc, audit) => {
+    if (!acc[audit.project_id] || new Date(audit.created_at) > new Date(acc[audit.project_id].created_at)) {
+      acc[audit.project_id] = audit;
+    }
+    return acc;
+  }, {} as Record<string, typeof projectAudits[0]>);
   
   // Get recent audit reports
   const { data: recentAudits } = await supabase
@@ -62,12 +93,14 @@ export default async function DashboardPage() {
       id,
       url,
       created_at,
-      report_data,
+      report,
       project_id,
+      status,
+      score,
       projects:project_id (name)
     `)
     .order("created_at", { ascending: false })
-    .limit(5) as { data: AuditWithProject[] | null }
+    .limit(10) as { data: AuditWithProject[] | null }
   
   // Get recent todos
   const { data: recentTodos } = await supabase
@@ -77,15 +110,68 @@ export default async function DashboardPage() {
       title,
       status,
       priority,
+      description,
       created_at,
       project_id,
       projects:project_id (name)
     `)
+    .order("priority", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(5) as { data: TodoWithProject[] | null }
+    .limit(10) as { data: TodoWithProject[] | null }
   
   // Check if this is a new user with no projects
   const isNewUser = !projects || projects.length === 0
+  
+  // Calculate average SEO score from audits
+  const averageSeoScore = projectAudits && projectAudits.length > 0
+    ? Math.round(projectAudits.reduce((sum, audit) => sum + (audit.score || 0), 0) / projectAudits.length)
+    : 0;
+  
+  // Get historical data (one month ago) for comparison
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  
+  // Get historical project count for comparison
+  const { data: lastMonthProjects } = await supabase
+    .from("projects")
+    .select("id")
+    .lt("created_at", oneMonthAgo.toISOString())
+    .eq("user_id", user.id)
+    .eq("status", "active");
+  
+  const projectGrowth = (projects?.length || 0) - (lastMonthProjects?.length || 0);
+  
+  // Get historical SEO score for comparison (from audits created more than a month ago)
+  const { data: lastMonthAudits } = await supabase
+    .from("audits")
+    .select("score")
+    .lt("created_at", oneMonthAgo.toISOString())
+    .in('project_id', projects?.map(p => p.id) || []);
+  
+  const lastMonthAverageScore = lastMonthAudits && lastMonthAudits.length > 0
+    ? Math.round(lastMonthAudits.reduce((sum, audit) => sum + (audit.score || 0), 0) / lastMonthAudits.length)
+    : 0;
+  
+  const scoreGrowth = averageSeoScore - lastMonthAverageScore;
+  
+  // Get historical pending tasks for comparison
+  const { data: lastMonthPendingTasks } = await supabase
+    .from("todos")
+    .select("id")
+    .lt("created_at", oneMonthAgo.toISOString())
+    .eq("user_id", user.id)
+    .eq("status", "pending");
+  
+  const currentPendingTasks = recentTodos?.filter(todo => todo.status === 'pending').length || 0;
+  const lastMonthPendingTasksCount = lastMonthPendingTasks?.length || 0;
+  const taskChange = lastMonthPendingTasksCount - currentPendingTasks;
+  // For pending tasks, a reduction (negative change) is actually positive
+  const isTaskChangePositive = taskChange <= 0 ? false : true;
+  
+  // Calculate average position (dummy data for now, could be replaced with real ranking data)
+  const averagePosition = "12.4";
+  const positionChange = -0.8;
+  const isPositionChangePositive = positionChange < 0; // For ranking, lower is better
   
   if (isNewUser) {
     return (
@@ -241,13 +327,16 @@ export default async function DashboardPage() {
             </Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/audits/new">
+            <Link href="/projects">
               <Search className="mr-2 h-4 w-4" />
               New Audit
             </Link>
           </Button>
         </div>
       </div>
+      
+      {/* Crawler Service Status */}
+      <CrawlerServiceStatus />
       
       {/* Metrics Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -256,44 +345,44 @@ export default async function DashboardPage() {
           value={projects?.length || 0}
           description="Active SEO projects"
           iconName="file"
-          trend={{
-            value: "+2",
-            isPositive: true,
+          trend={projectGrowth !== 0 ? {
+            value: projectGrowth > 0 ? `+${projectGrowth}` : `${projectGrowth}`,
+            isPositive: projectGrowth >= 0,
             label: "from last month"
-          }}
+          } : undefined}
         />
         <DashboardMetricCard
           title="Average Position"
-          value="12.4"
+          value={averagePosition}
           description="Google search position"
           iconName="trending"
           trend={{
-            value: "-0.8",
-            isPositive: true,
+            value: positionChange.toString(),
+            isPositive: isPositionChangePositive,
             label: "from last month"
           }}
         />
         <DashboardMetricCard
           title="SEO Score"
-          value="76/100"
+          value={`${averageSeoScore || 0}/100`}
           description="Average across projects"
           iconName="barChart"
-          trend={{
-            value: "+4",
-            isPositive: true,
+          trend={scoreGrowth !== 0 ? {
+            value: scoreGrowth > 0 ? `+${scoreGrowth}` : `${scoreGrowth}`,
+            isPositive: scoreGrowth > 0,
             label: "from last month"
-          }}
+          } : undefined}
         />
         <DashboardMetricCard
           title="Pending Tasks"
-          value={recentTodos?.filter(todo => todo.status === 'pending').length || 0}
+          value={currentPendingTasks}
           description="SEO improvements"
           iconName="check"
-          trend={{
-            value: "-3",
-            isPositive: true,
+          trend={taskChange !== 0 ? {
+            value: taskChange < 0 ? `${taskChange}` : `+${taskChange}`,
+            isPositive: taskChange < 0,
             label: "from last month"
-          }}
+          } : undefined}
         />
       </div>
       
@@ -307,18 +396,24 @@ export default async function DashboardPage() {
         </div>
         
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {projects.map((project) => (
-            <DashboardProjectCard
-              key={project.id}
-              project={project}
-              metrics={{
-                seoScore: Math.floor(Math.random() * 30) + 70,
-                position: (Math.random() * 20 + 1).toFixed(1),
-                crawlStatus: Math.random() > 0.3 ? "completed" : "pending",
-                lastCrawl: new Date(project.updated_at).toLocaleDateString()
-              }}
-            />
-          ))}
+          {projects.map((project) => {
+            const latestAudit = latestAuditsByProject?.[project.id];
+            
+            return (
+              <DashboardProjectCard
+                key={project.id}
+                project={project}
+                metrics={{
+                  seoScore: latestAudit?.score || 0,
+                  position: latestAudit ? `#${Math.floor(Math.random() * 15) + 1}` : "N/A",
+                  crawlStatus: latestAudit?.status || "pending",
+                  lastCrawl: latestAudit ? 
+                    new Date(latestAudit.created_at).toLocaleDateString() : 
+                    new Date(project.updated_at).toLocaleDateString()
+                }}
+              />
+            );
+          })}
         </div>
       </div>
       
@@ -336,16 +431,21 @@ export default async function DashboardPage() {
                 {recentAudits.map((audit) => (
                   <DashboardActivityItem
                     key={audit.id}
-                    icon={Search}
+                    icon="Search"
                     title={audit.projects?.name || "Unknown Project"}
-                    description={`Audit for ${audit.url}`}
+                    description={`Audit for ${audit.url} ${audit.score ? `• Score: ${audit.score}/100` : ''}`}
                     timestamp={new Date(audit.created_at).toLocaleDateString()}
                     status={{
-                      label: "Completed",
-                      icon: CheckCircle2,
-                      color: "text-green-500"
+                      label: audit.status === 'completed' ? "Completed" : 
+                             audit.status === 'processing' ? "Processing" : 
+                             audit.status === 'failed' ? "Failed" : "Pending",
+                      icon: audit.status === 'completed' ? "CheckCircle2" : 
+                            audit.status === 'failed' ? "FileText" : "Clock",
+                      color: audit.status === 'completed' ? "text-green-500" : 
+                             audit.status === 'failed' ? "text-red-500" :
+                             audit.status === 'processing' ? "text-blue-500" : "text-amber-500"
                     }}
-                    link={`/audits/${audit.id}`}
+                    link={`/projects/${audit.project_id}/audits/${audit.id}`}
                   />
                 ))}
               </div>
@@ -357,7 +457,7 @@ export default async function DashboardPage() {
           </CardContent>
           <CardFooter>
             <Button variant="outline" size="sm" className="w-full" asChild>
-              <Link href="/audits">View all audits</Link>
+              <Link href="/projects">View all audits</Link>
             </Button>
           </CardFooter>
         </Card>
@@ -371,21 +471,34 @@ export default async function DashboardPage() {
           <CardContent>
             {recentTodos && recentTodos.length > 0 ? (
               <div className="space-y-4">
-                {recentTodos.map((todo) => (
-                  <DashboardActivityItem
-                    key={todo.id}
-                    icon={todo.status === 'completed' ? CheckCircle2 : Clock}
-                    title={todo.title}
-                    description={`${todo.projects?.name || "Unknown Project"} • ${todo.priority} priority`}
-                    timestamp={new Date(todo.created_at).toLocaleDateString()}
-                    status={{
-                      label: todo.status === 'completed' ? "Completed" : "Pending",
-                      icon: todo.status === 'completed' ? CheckCircle2 : Clock,
-                      color: todo.status === 'completed' ? "text-green-500" : "text-amber-500"
-                    }}
-                    link={`/todos/${todo.id}`}
-                  />
-                ))}
+                {recentTodos.map((todo) => {
+                  const priorityColor = 
+                    todo.priority === 'critical' ? "text-red-500" :
+                    todo.priority === 'high' ? "text-orange-500" :
+                    todo.priority === 'medium' ? "text-amber-500" : "text-blue-500";
+                  
+                  const statusIcon = todo.status === 'completed' ? "CheckCircle2" : 
+                                     todo.status === 'canceled' ? "FileText" : "Clock";
+                  
+                  return (
+                    <DashboardActivityItem
+                      key={todo.id}
+                      icon={todo.status === 'completed' ? "CheckCircle2" : "Clock"}
+                      title={todo.title}
+                      description={`${todo.projects?.name || "Unknown Project"} • ${todo.priority.charAt(0).toUpperCase() + todo.priority.slice(1)} priority`}
+                      timestamp={new Date(todo.created_at).toLocaleDateString()}
+                      status={{
+                        label: todo.status === 'completed' ? "Completed" : 
+                               todo.status === 'in_progress' ? "In Progress" : 
+                               todo.status === 'canceled' ? "Canceled" : "Pending",
+                        icon: statusIcon,
+                        color: todo.status === 'completed' ? "text-green-500" : 
+                               todo.status === 'canceled' ? "text-slate-500" : priorityColor
+                      }}
+                      link={`/todos/${todo.id}`}
+                    />
+                  );
+                })}
               </div>
             ) : (
               <div className="py-6 text-center text-muted-foreground">
@@ -399,6 +512,33 @@ export default async function DashboardPage() {
             </Button>
           </CardFooter>
         </Card>
+      </div>
+      
+      <div className="grid gap-6 mt-6">
+        {isAdmin && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 className="text-lg font-medium text-yellow-800 mb-2">Admin Diagnostics</h3>
+            <div className="space-y-2">
+              <p className="text-sm text-yellow-700">
+                Use these links for troubleshooting:
+              </p>
+              <div className="flex space-x-3">
+                <a 
+                  href="/dashboard/white-label?debug=true" 
+                  className="text-sm px-3 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded"
+                >
+                  White Label Debug Mode
+                </a>
+                <a 
+                  href="/dashboard/debug-tools" 
+                  className="text-sm px-3 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded"
+                >
+                  Debug Tools
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
