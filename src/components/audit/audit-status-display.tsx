@@ -31,20 +31,6 @@ export function AuditStatusDisplay({ auditId, projectId, onComplete }: AuditStat
       
       try {
         setIsLoading(true)
-        
-        // First, sync the status between crawler service and frontend database
-        await fetch('/api/audits/sync-status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectId,
-            auditId,
-          }),
-        })
-        
-        // Then fetch the latest status
         const response = await fetch(`/api/audits/${auditId}/status`)
         
         if (!response.ok) {
