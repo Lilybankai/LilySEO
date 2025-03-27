@@ -19,6 +19,12 @@ COPY . .
 
 # Set environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
+# Add mock environment variables to enable build even when credentials aren't available
+ENV NEXT_PUBLIC_SUPABASE_URL=https://placeholder-supabase-url.supabase.co
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-key
+ENV SUPABASE_SERVICE_ROLE_KEY=placeholder-service-role-key
+ENV UPSTASH_REDIS_REST_URL=https://placeholder-redis-url.upstash.io
+ENV UPSTASH_REDIS_REST_TOKEN=placeholder-token
 
 # Build the application
 RUN npm run build:css
