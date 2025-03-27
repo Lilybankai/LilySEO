@@ -36,6 +36,9 @@ PAYPAL_WEBHOOK_ID=your-paypal-webhook-id
 NEXT_PUBLIC_APP_URL=https://your-coolify-app-url
 CRON_SECRET=your-cron-secret
 NODE_ENV=production
+SERPER_API_KEY=your-serper-api-key
+UPSTASH_REDIS_REST_URL=your-upstash-redis-url
+UPSTASH_REDIS_REST_TOKEN=your-upstash-redis-token
 ```
 
 ### 3. Setup Multiple Environments
@@ -91,6 +94,7 @@ chmod +x deploy-coolify.sh
 1. **Build Failures**
    - Check Docker build logs in Coolify
    - Ensure Dockerfile is correctly configured
+   - Make sure all required dependencies are installed in package.json
 
 2. **Environment Variables**
    - Verify all required environment variables are set
