@@ -2,6 +2,7 @@
 const nextConfig = {
   /* config options here */
   reactStrictMode: true,
+  output: 'standalone',
   webpack: (config) => {
     // Add any webpack configurations if needed
     return config;
