@@ -424,7 +424,27 @@ export async function GET(request: NextRequest) {
     // Limit results to the requested number (maxResults)
     const requestedMax = parseInt(maxResults, 10);
     console.log(`Limiting results to ${requestedMax} as requested (from ${results.length} available)`);
-    results = results.slice(0, requestedMax);
+    
+    // Add safety check - ensure results is not too large to prevent "Invalid array length" errors
+    // Frontend components might struggle with extremely large arrays
+    const MAX_SAFE_RESULTS = 50; // Frontend can safely handle this many results
+    results = results.slice(0, Math.min(requestedMax, MAX_SAFE_RESULTS));
+    
+    // Apply safety checks to each result's properties
+    results = results.map((result: any) => {
+      // Limit any array properties to reasonable sizes
+      if (result.types && Array.isArray(result.types) && result.types.length > 10) {
+        result.types = result.types.slice(0, 10);
+      }
+      if (result.type && Array.isArray(result.type) && result.type.length > 10) {
+        result.type = result.type.slice(0, 10);
+      }
+      if (result.categories && Array.isArray(result.categories) && result.categories.length > 10) {
+        result.categories = result.categories.slice(0, 10);
+      }
+      
+      return result;
+    });
 
     // Record search in database
     const supabase = await createClient();
