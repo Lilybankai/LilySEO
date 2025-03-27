@@ -43,8 +43,14 @@ export default function Map({ results, selectedIndex, onMarkerClick }: MapProps)
   // Store previous filtered results to compare and avoid unnecessary marker creation
   const prevResultsRef = useRef<SearchResult[]>([]);
   
-  // Filter out results without coordinates
-  const filteredResults = results.filter(r => r.latitude && r.longitude)
+  // Safety check - ensure results is an array before filtering
+  const safeResults = Array.isArray(results) ? results : [];
+  
+  // Filter out results without coordinates with additional safety checks
+  const filteredResults = safeResults.filter(r => 
+    r && typeof r === 'object' && r.latitude && r.longitude &&
+    !isNaN(Number(r.latitude)) && !isNaN(Number(r.longitude))
+  );
   
   // Check if Google Maps is already loaded when component mounts
   useEffect(() => {

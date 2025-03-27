@@ -257,6 +257,50 @@ export default function LeadSearch({ onSearch, remainingSearches }: LeadSearchPr
     applyFilters();
   }, [selectedCategories, results]);
 
+  // Process results safely to prevent array issues
+  useEffect(() => {
+    if (!isLoading && Array.isArray(results)) {
+      // Apply safety limits to the results array to prevent "Invalid array length" errors
+      const safeResults = results.map(result => {
+        const safeResult = { ...result };
+        
+        // Ensure type is a valid array with reasonable length
+        if (safeResult.type) {
+          if (Array.isArray(safeResult.type)) {
+            // Limit array size to prevent excessive rendering
+            safeResult.type = safeResult.type.slice(0, 20);
+          } else if (typeof safeResult.type === 'string') {
+            // Convert string to array with a single item
+            safeResult.type = [safeResult.type];
+          } else {
+            // Initialize as empty array if invalid
+            safeResult.type = [];
+          }
+        } else {
+          safeResult.type = [];
+        }
+        
+        // Ensure other array properties are valid
+        if (safeResult.services && Array.isArray(safeResult.services) && safeResult.services.length > 100) {
+          safeResult.services = safeResult.services.slice(0, 100);
+        }
+        
+        if (safeResult.photos && Array.isArray(safeResult.photos) && safeResult.photos.length > 20) {
+          safeResult.photos = safeResult.photos.slice(0, 20);
+        }
+        
+        return safeResult;
+      });
+      
+      setFilteredResults(safeResults);
+      setExpandedRows({});
+    } else if (!isLoading) {
+      // Handle case where results is not an array
+      setFilteredResults([]);
+      setExpandedRows({});
+    }
+  }, [isLoading, results]);
+
   const handleSaveLead = async (result: SearchResult) => {
     try {
       // Properly handle categories/type data whether it's a string or array
@@ -840,22 +884,22 @@ export default function LeadSearch({ onSearch, remainingSearches }: LeadSearchPr
                                 
                                 {result.type && (
                                   <div className="flex flex-wrap gap-1 mt-2">
-                                    {Array.isArray(result.type) 
-                                      ? result.type.map((type, i) => (
+                                    {Array.isArray(result.type) && result.type.length > 0
+                                      ? result.type.slice(0, 10).map((type, i) => (
                                           <span 
                                             key={i} 
                                             className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full"
                                           >
-                                            {type}
+                                            {type && typeof type === 'string' ? type : ''}
                                           </span>
                                         ))
-                                      : (
+                                      : typeof result.type === 'string' ? (
                                           <span 
                                             className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full"
                                           >
                                             {result.type}
                                           </span>
-                                        )
+                                        ) : null
                                     }
                                   </div>
                                 )}

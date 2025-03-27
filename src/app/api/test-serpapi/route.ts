@@ -15,7 +15,7 @@ export async function GET() {
     const requestPayload = {
       "q": "cafe in Ontario, Canada",
       "gl": "ca",
-      "num": 10, // Increased from 3 to 10 for testing larger results
+      "num": 5, // Reduced from 10 to 5 for testing to avoid potential array issues
       "type": "places",
       "ll": "51.253775,-85.3232139",
       "radius": 50000
@@ -67,14 +67,45 @@ export async function GET() {
     const resultsWithCoordinates = places.filter((r: any) => r.latitude && r.longitude).length;
     console.log(`Total results: ${places.length}, Results with coordinates: ${resultsWithCoordinates}`);
     
-    // Limit results to prevent array size issues
-    const limitedResults = places.slice(0, 20); // Increased from 10 to 20
+    // Limit results and add safety processing to prevent array issues
+    let processedResults = places.slice(0, 5).map((place: any) => {
+      // Process and sanitize data to prevent client-side errors
+      let result = { ...place };
+      
+      // Ensure type is properly formatted (convert to array if string)
+      if (result.type && !Array.isArray(result.type)) {
+        result.type = [result.type];
+      } else if (result.category && !result.type) {
+        // Use category as type if no type is provided
+        result.type = [result.category];
+      } else if (!result.type) {
+        result.type = [];
+      }
+      
+      // Limit array sizes to reasonable values
+      if (Array.isArray(result.type) && result.type.length > 10) {
+        result.type = result.type.slice(0, 10);
+      }
+      
+      // Make sure latitude and longitude are numbers
+      if (result.latitude && typeof result.latitude === 'string') {
+        result.latitude = parseFloat(result.latitude);
+      }
+      if (result.longitude && typeof result.longitude === 'string') {
+        result.longitude = parseFloat(result.longitude);
+      }
+      
+      // Filter out invalid or excessive properties
+      return result;
+    });
+    
+    console.log("Processed results with safety checks. Count:", processedResults.length);
     
     return NextResponse.json({
       success: true,
-      resultsCount: places.length,
+      resultsCount: processedResults.length,
       remainingSearches: 500 - 1, // Mock value for testing
-      firstFewResults: limitedResults
+      firstFewResults: processedResults
     });
   } catch (error: any) {
     console.error("Error in test SerpAPI:", error);
