@@ -25,6 +25,9 @@ export function ExecutiveSummary({ auditData, projectUrl }: ExecutiveSummaryProp
     { category: "Links", score: auditData.report.score.categories.links || 0, fullMark: 100 },
     { category: "Social", score: auditData.report.score.categories.social || 0, fullMark: 100 },
   ] : [];
+  
+  // Debug radar chart data
+  console.log('Executive Summary Radar Chart Data:', scoreData);
 
   // Count total issues
   const totalIssues = auditData.report?.issues ? 

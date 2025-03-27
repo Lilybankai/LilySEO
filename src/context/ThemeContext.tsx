@@ -6,7 +6,7 @@ import { createContext, useState, useContext, ReactNode } from 'react';
 export interface PdfTheme {
   primaryColor: string;
   secondaryColor: string;
-  fontFamily: string;
+  fontFamily: string; // Important: Use only a single font name here, not a comma-separated list
   companyName: string;
   logoUrl?: string;
   contactInfo?: string;
@@ -26,6 +26,8 @@ export interface PdfTheme {
     recommendations: boolean;
     charts: boolean;
     branding: boolean;
+    structuredData: boolean;
+    internalLinks: boolean;
   };
 }
 
@@ -38,7 +40,7 @@ interface ThemeContextType {
 const defaultTheme: PdfTheme = {
   primaryColor: 'hsl(220 70% 50%)', // From theme guide
   secondaryColor: '#4b5563',
-  fontFamily: 'Poppins, Montserrat, sans-serif', // From theme guide
+  fontFamily: 'Poppins', // Changed from 'Poppins, Montserrat, sans-serif' to a single font
   companyName: 'LilySEO',
   contactInfo: 'support@lilyseo.com',
   footerText: `© ${new Date().getFullYear()} LilySEO. All rights reserved.`,
@@ -56,7 +58,9 @@ const defaultTheme: PdfTheme = {
     insights: true,
     recommendations: true,
     charts: true,
-    branding: true
+    branding: true,
+    structuredData: true,
+    internalLinks: true
   }
 };
 

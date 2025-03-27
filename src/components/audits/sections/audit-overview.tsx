@@ -83,6 +83,9 @@ export function AuditOverview({ score, issues, createdAt, projectUrl }: AuditOve
                  score.overall >= 50 ? "Needs Improvement" : 
                  "Poor"}
               </Badge>
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Score reflects industry-standard SEO health assessment. Most sites with issues score between 65-85, with perfect scores being rare and reserved for flawless implementations.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -149,6 +152,7 @@ export function AuditOverview({ score, issues, createdAt, projectUrl }: AuditOve
               ))}
             </div>
             <div className="min-h-[300px]">
+              {console.log('Radar chart category scores:', JSON.stringify(score.categories))}
               <ScoreRadarChart data={score.categories} />
             </div>
           </div>

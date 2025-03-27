@@ -15,10 +15,11 @@ interface AuditStatusDisplayProps {
 }
 
 export function AuditStatusDisplay({ auditId, projectId, onComplete }: AuditStatusDisplayProps) {
-  const [status, setStatus] = useState<string>("pending")
+  const [status, setStatus] = useState<string>("unknown")
   const [progress, setProgress] = useState<number>(0)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [auditData, setAuditData] = useState<any>(null)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -40,7 +41,8 @@ export function AuditStatusDisplay({ auditId, projectId, onComplete }: AuditStat
         const data = await response.json()
         
         if (isMounted) {
-          setStatus(data.status)
+          setStatus(data.status || "unknown")
+          setAuditData(data)
           
           // Calculate progress based on status
           if (data.status === "completed") {
@@ -71,10 +73,13 @@ export function AuditStatusDisplay({ auditId, projectId, onComplete }: AuditStat
             progressSteps++
           } else if (data.status === "failed") {
             clearInterval(intervalId)
+          } else if (data.status === "unknown") {
+            setProgress(0)
           }
         }
       } catch (err) {
         if (isMounted) {
+          console.error("Error fetching audit status:", err)
           setError(err instanceof Error ? err.message : "An error occurred")
           toast({
             title: "Error",
@@ -143,6 +148,7 @@ export function AuditStatusDisplay({ auditId, projectId, onComplete }: AuditStat
           badgeClass: "",
           badgeLabel: "Failed"
         }
+      case "unknown":
       default:
         return {
           title: "Unknown Status",
@@ -181,6 +187,7 @@ export function AuditStatusDisplay({ auditId, projectId, onComplete }: AuditStat
             {status === "pending" && "Waiting to start..."}
             {status === "completed" && "Audit completed successfully!"}
             {status === "failed" && "Audit failed. Please try again."}
+            {status === "unknown" && "Checking audit status..."}
           </div>
           
           {status === "failed" && (
@@ -193,7 +200,7 @@ export function AuditStatusDisplay({ auditId, projectId, onComplete }: AuditStat
                   title: "Retrying audit",
                   description: "Initiating a new audit request",
                 })
-                // Here you would implement the retry logic
+                window.location.reload()
               }}
             >
               Retry Audit

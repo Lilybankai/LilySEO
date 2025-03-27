@@ -12,7 +12,7 @@ type Project = Database["public"]["Tables"]["projects"]["Row"]
 
 interface ProjectMetrics {
   seoScore: number
-  position: string | number
+  fixesNeeded: number
   crawlStatus: "pending" | "processing" | "completed" | "failed"
   lastCrawl: string
 }
@@ -53,8 +53,8 @@ export function DashboardProjectCard({ project, metrics }: DashboardProjectCardP
           
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground">Avg. Position</p>
-              <p className="font-medium">{metrics.position || "N/A"}</p>
+              <p className="text-muted-foreground">Fixes Needed</p>
+              <p className="font-medium">{metrics.fixesNeeded || 0}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Last Crawl</p>

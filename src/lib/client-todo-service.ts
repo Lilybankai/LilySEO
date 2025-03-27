@@ -12,6 +12,8 @@ export interface TodoItem {
   userId?: string;
   createdAt?: string;
   updatedAt?: string;
+  scheduledFor?: string;
+  assignedTo?: string;
 }
 
 // Counter to track failed attempts

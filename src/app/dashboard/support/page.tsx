@@ -83,40 +83,103 @@ export default function SupportPage() {
           category: "Audits",
           url: "/docs/seo-score"
         },
+        // Task Management Articles
         {
           id: 4,
-          title: "Managing Your SEO Tasks",
-          description: "How to manage and prioritize SEO tasks effectively",
-          category: "Tasks",
-          url: "/docs/tasks"
+          title: "Using the Kanban Task Board",
+          description: "How to organize and manage your SEO tasks with our drag-and-drop Kanban board",
+          category: "Task Management",
+          url: "/docs/kanban-board"
         },
         {
           id: 5,
+          title: "Task Calendar & Scheduling",
+          description: "Plan your SEO activities with the interactive calendar view",
+          category: "Task Management",
+          url: "/docs/task-calendar"
+        },
+        {
+          id: 6,
+          title: "Time Tracking for SEO Tasks",
+          description: "How to track time spent on different SEO activities and measure productivity",
+          category: "Task Management",
+          url: "/docs/time-tracking"
+        },
+        {
+          id: 7,
+          title: "Task Metrics & Analytics",
+          description: "Understand performance metrics for your SEO tasks and team productivity",
+          category: "Task Management",
+          url: "/docs/task-metrics"
+        },
+        // Team Management Articles
+        {
+          id: 8,
+          title: "Managing Your SEO Team",
+          description: "How to add team members and manage permissions",
+          category: "Team Management",
+          url: "/docs/team-management"
+        },
+        {
+          id: 9,
+          title: "Assigning Tasks to Team Members",
+          description: "Learn how to distribute SEO work among your team effectively",
+          category: "Team Management",
+          url: "/docs/task-assignments"
+        },
+        {
+          id: 10,
+          title: "Team Notifications System",
+          description: "Stay updated on task assignments, completions, and team activity",
+          category: "Team Management",
+          url: "/docs/team-notifications"
+        },
+        // Competitor Analysis
+        {
+          id: 11,
           title: "Setting Up Competitor Analysis",
           description: "Track and analyze your competitors' SEO performance",
           category: "Competitors",
           url: "/docs/competitors"
         },
+        // AI Features
         {
-          id: 6,
+          id: 12,
+          title: "AI-Powered SEO Recommendations",
+          description: "How to use our AI to get intelligent suggestions for task prioritization",
+          category: "AI Features",
+          url: "/docs/ai-recommendations"
+        },
+        // Subscription & Billing
+        {
+          id: 13,
           title: "Subscription Plan Options",
           description: "Compare different subscription plans and features",
           category: "Billing",
           url: "/docs/subscription"
         },
+        // Enterprise Features
         {
-          id: 7,
+          id: 14,
           title: "White Label Features",
           description: "How to use white label features for client reporting",
           category: "Enterprise",
           url: "/docs/white-label"
         },
+        // API & Integration
         {
-          id: 8,
+          id: 15,
           title: "Using the API",
           description: "Integrate LilySEO with your own applications",
           category: "Developers",
           url: "/docs/api"
+        },
+        {
+          id: 16,
+          title: "Batch Operations for Tasks",
+          description: "How to efficiently manage multiple tasks at once with batch actions",
+          category: "Task Management",
+          url: "/docs/batch-operations"
         }
       ];
       

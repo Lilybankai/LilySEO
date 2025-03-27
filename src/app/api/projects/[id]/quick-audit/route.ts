@@ -29,9 +29,14 @@ export async function GET(request: NextRequest, context: { params: { id: string 
     const { remaining, isLimited } = await getUserAuditLimits(user.id);
     
     if (isLimited && remaining <= 0) {
-      // Redirect to the project page with an error parameter
-      return NextResponse.redirect(
-        new URL(`/projects/${id}?error=audit_limit_reached`, request.url)
+      // Return JSON error response for audit limit reached
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "Audit limit reached",
+          message: "You've reached your monthly audit limit. Upgrade your plan for more audits."
+        },
+        { status: 403 }
       );
     }
     
@@ -63,8 +68,13 @@ export async function GET(request: NextRequest, context: { params: { id: string 
     
     if (error) {
       console.error("Error creating audit:", error);
-      return NextResponse.redirect(
-        new URL(`/projects/${id}?error=create_audit_failed`, request.url)
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "Create audit failed",
+          message: error.message || "Failed to create audit record"
+        },
+        { status: 500 }
       );
     }
     
@@ -106,23 +116,46 @@ export async function GET(request: NextRequest, context: { params: { id: string 
           })
           .eq("id", audit.id);
           
-        throw new Error(errorData.error || "Failed to start audit with crawler service");
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: "Start audit failed",
+            message: errorData.error || "Failed to start audit with crawler service"
+          },
+          { status: 500 }
+        );
       }
     } catch (error) {
       console.error("Error starting audit with crawler service:", error);
-      return NextResponse.redirect(
-        new URL(`/projects/${id}?error=create_audit_failed`, request.url)
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "Crawler service error",
+          message: error instanceof Error ? error.message : "Failed to communicate with crawler service"
+        },
+        { status: 500 }
       );
     }
     
-    // Redirect back to the project page with success parameter
-    return NextResponse.redirect(
-      new URL(`/projects/${id}?success=audit_started`, request.url)
-    );
+    // Instead of redirecting, return JSON with the audit ID and success message
+    // This allows the client-side Javascript to use the audit ID for polling
+    return NextResponse.json({
+      success: true,
+      message: "Audit started successfully",
+      auditId: audit.id,
+      projectId: id
+    });
   } catch (error) {
     console.error("Error in quick audit:", error);
-    return NextResponse.redirect(
-      new URL(`/projects/${context.params.id}?error=unexpected_error`, request.url)
+    
+    // Return error as JSON
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: "An unexpected error occurred",
+        message: error instanceof Error ? error.message : "Unknown error"
+      },
+      { status: 500 }
     );
   }
 } 

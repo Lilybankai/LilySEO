@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronDown, ChevronRight, Zap, FileText, Globe, UserCheck, ExternalLink } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
+import { TodoButton } from "@/components/ui/todo-button"
 
 type Priority = "critical" | "high" | "medium" | "low"
 type Category = "technical" | "on-page" | "off-page" | "user-experience" | "performance" | "metaDescription" | "titleTags" | "links" | "images" | "security" | "mobile"
@@ -37,10 +38,9 @@ interface ActionPlanProps {
     report: any;
   };
   projectId: string;
-  onAddToTodo: (issueId: string, recommendation: string) => void;
 }
 
-export function ActionPlan({ auditData, projectId, onAddToTodo }: ActionPlanProps) {
+export function ActionPlan({ auditData, projectId }: ActionPlanProps) {
   // Derive action items from the audit data
   const [actions, setActions] = useState<ActionItem[]>(() => {
     const items: ActionItem[] = [];
@@ -93,10 +93,6 @@ export function ActionPlan({ auditData, projectId, onAddToTodo }: ActionPlanProp
         item.id === id ? { ...item, checked: !item.checked } : item
       )
     );
-  };
-
-  const handleAddToTodo = (item: ActionItem) => {
-    onAddToTodo(item.id, `${item.title} - ${item.description}`);
   };
 
   // Filter actions based on selected filters
@@ -250,148 +246,103 @@ export function ActionPlan({ auditData, projectId, onAddToTodo }: ActionPlanProp
             <TableBody>
               {filteredActions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-                    No recommendations found in this category
+                  <TableCell colSpan={5} className="text-center py-6">
+                    No action items found. Try changing your filters.
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredActions.map(item => (
                   <React.Fragment key={item.id}>
-                    <TableRow className={`${item.checked ? "opacity-60" : ""} ${item.isAiRecommendation ? "bg-purple-50/30 dark:bg-purple-900/5" : ""}`}>
-                      <TableCell className="px-2">
-                        <Checkbox
-                          checked={item.checked}
-                          onCheckedChange={() => toggleChecked(item.id)}
-                        />
-                      </TableCell>
-                      <TableCell
-                        className="cursor-pointer"
-                        onClick={() => toggleExpand(item.id)}
-                      >
-                        <div className="flex items-start gap-2">
-                          {expanded[item.id] ? (
-                            <ChevronDown className="h-4 w-4 mt-1 flex-shrink-0" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 mt-1 flex-shrink-0" />
-                          )}
-                          <div>
-                            <div className="font-medium flex items-center gap-1">
-                              {item.isAiRecommendation && (
-                                <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 text-xs px-1.5 py-0">
-                                  AI
-                                </Badge>
-                              )}
-                              {item.title}
-                            </div>
-                            {expanded[item.id] && (
-                              <div className="text-sm text-muted-foreground mt-1 mb-2">
-                                {item.description}
-                              </div>
+                    <TableRow 
+                      className={item.checked ? "bg-muted/50" : ""}
+                      onClick={() => toggleExpand(item.id)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center">
+                          <Checkbox 
+                            checked={item.checked} 
+                            onCheckedChange={() => toggleChecked(item.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="ml-2 cursor-pointer">
+                            {expanded[item.id] ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
                             )}
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={getPriorityColor(item.priority)}
-                        >
-                          {item.priority}
+                        <div className="font-medium hover:underline cursor-pointer">
+                          {item.title}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getPriorityColor(item.priority)}>
+                          {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`flex items-center gap-1 ${getCategoryColor(item.category)}`}
-                        >
-                          {getCategoryIcon(item.category)}
-                          <span>
-                            {item.category.charAt(0).toUpperCase() + 
-                             item.category.slice(1).replace(/([A-Z])/g, ' $1')}
+                        <Badge className={getCategoryColor(item.category)} variant="outline">
+                          <span className="flex items-center gap-1">
+                            {getCategoryIcon(item.category)}
+                            <span className="hidden sm:inline">
+                              {item.category.charAt(0).toUpperCase() + item.category.slice(1).replace(/([A-Z])/g, ' $1')}
+                            </span>
                           </span>
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAddToTodo(item)}
-                        >
-                          Add to Todo
-                        </Button>
+                        <div className="flex gap-2">
+                          <TodoButton 
+                            issueId={item.id}
+                            recommendation={`${item.title} - ${item.description}`}
+                            projectId={projectId}
+                            auditId={auditData.id}
+                          />
+                          {item.url && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(item.url, '_blank');
+                              }}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
-                    {expanded[item.id] && item.impact !== undefined && (
-                      <TableRow>
-                        <TableCell colSpan={5} className="bg-muted/50 px-10 py-3">
-                          <div className="space-y-4">
-                            <div className="flex flex-col md:flex-row gap-6">
-                              <div className="flex-1">
-                                <div className="text-sm font-medium mb-1">Impact</div>
-                                <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-blue-500 rounded-full"
-                                    style={{ width: `${item.impact}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                              {item.difficulty !== undefined && (
-                                <div className="flex-1">
-                                  <div className="text-sm font-medium mb-1">Difficulty</div>
-                                  <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-orange-500 rounded-full"
-                                      style={{ width: `${item.difficulty}%` }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              )}
-                              <div className="flex-1">
-                                <div className="text-sm font-medium mb-1">Estimated Time</div>
-                                <div className="text-sm">{item.estimatedTime || "Varies"}</div>
-                              </div>
+                    {expanded[item.id] && (
+                      <TableRow className="bg-muted/30">
+                        <TableCell colSpan={5} className="p-4">
+                          <div className="space-y-3">
+                            <div>
+                              <h3 className="font-medium mb-1">Description</h3>
+                              <p className="text-muted-foreground">{item.description}</p>
                             </div>
                             
-                            {/* Show different content based on item type */}
-                            {item.isAiRecommendation ? (
-                              // AI Recommendation specific details
-                              <div className="mt-2">
-                                {item.implementation && (
-                                  <div className="bg-purple-50 dark:bg-purple-900/10 p-3 rounded-md border border-purple-100 dark:border-purple-800">
-                                    <p className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-1">Implementation Guide:</p>
-                                    <p className="text-sm text-muted-foreground">{item.implementation}</p>
-                                  </div>
-                                )}
+                            {item.current && (
+                              <div>
+                                <h3 className="font-medium mb-1">Current State</h3>
+                                <p className="text-muted-foreground">{item.current}</p>
                               </div>
-                            ) : (
-                              // SEO Issue specific details
-                              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {item.current && (
-                                  <div className="bg-red-50 dark:bg-red-900/10 p-3 rounded-md border border-red-100 dark:border-red-800">
-                                    <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-1">Current State:</p>
-                                    <p className="text-sm text-red-700 dark:text-red-400">{item.current}</p>
-                                  </div>
-                                )}
-                                {item.recommended && (
-                                  <div className="bg-green-50 dark:bg-green-900/10 p-3 rounded-md border border-green-100 dark:border-green-800">
-                                    <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-1">Recommended Fix:</p>
-                                    <p className="text-sm text-green-700 dark:text-green-400">{item.recommended}</p>
-                                  </div>
-                                )}
-                                {item.url && (
-                                  <div className="col-span-1 md:col-span-2">
-                                    <p className="text-sm font-medium mb-1">Affected URL:</p>
-                                    <a 
-                                      href={item.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:underline"
-                                    >
-                                      {item.url}
-                                      <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                  </div>
-                                )}
+                            )}
+                            
+                            {item.recommended && (
+                              <div>
+                                <h3 className="font-medium mb-1">Recommended Action</h3>
+                                <p className="text-muted-foreground">{item.recommended}</p>
+                              </div>
+                            )}
+                            
+                            {item.implementation && (
+                              <div className="bg-muted/50 p-3 rounded-md">
+                                <h3 className="font-medium mb-1">Implementation Guide</h3>
+                                <p className="text-muted-foreground whitespace-pre-line">{item.implementation}</p>
                               </div>
                             )}
                           </div>

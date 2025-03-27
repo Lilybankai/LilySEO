@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PlusCircle, ExternalLink, AlertTriangle, Info } from "lucide-react";
+import { AddToTodoDialog } from "../dialogs/add-to-todo-dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 interface AuditIssuesProps {
   issues: {
@@ -23,7 +25,7 @@ interface AuditIssuesProps {
     mobile: Array<any>;
     security: Array<any>;
   };
-  onAddToTodo: (issueId: string, recommendation: string) => Promise<void>;
+  onAddToTodo: (issueId: string, recommendation: string, options?: { scheduledFor?: string | undefined; assigneeId?: string | undefined }) => Promise<void>;
   projectUrl: string;
 }
 
@@ -45,6 +47,9 @@ export function AuditIssues({ issues, onAddToTodo, projectUrl }: AuditIssuesProp
   const [selectedSeverity, setSelectedSeverity] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [addToTodoOpen, setAddToTodoOpen] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const { toast } = useToast();
   const itemsPerPage = 10;
 
   // Get severity badge variant
@@ -118,6 +123,44 @@ export function AuditIssues({ issues, onAddToTodo, projectUrl }: AuditIssuesProp
       };
       return severityOrder[a.severity] - severityOrder[b.severity];
     });
+  };
+
+  const handleAddToTodo = (issue: Issue) => {
+    setSelectedIssue(issue);
+    setAddToTodoOpen(true);
+  };
+
+  const handleConfirmAddToTodo = async (data: { dueDate: Date | undefined; assigneeId: string | undefined }) => {
+    if (!selectedIssue) return;
+    
+    try {
+      const { dueDate, assigneeId } = data;
+      
+      // Format the date to ISO string if it exists
+      const scheduledFor = dueDate ? dueDate.toISOString() : undefined;
+      
+      // Call the original onAddToTodo function with additional parameters
+      await onAddToTodo(
+        selectedIssue.id, 
+        selectedIssue.recommendation,
+        {
+          scheduledFor,
+          assigneeId: assigneeId === 'me' ? undefined : assigneeId
+        }
+      );
+      
+      toast({
+        title: "Added to Todo",
+        description: "The issue has been added to your todo list.",
+      });
+    } catch (error) {
+      console.error("Error adding to todo:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add the issue to todo list.",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredIssues = getFilteredIssues();
@@ -242,7 +285,7 @@ export function AuditIssues({ issues, onAddToTodo, projectUrl }: AuditIssuesProp
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => onAddToTodo(issue.id, issue.recommendation)}
+                            onClick={() => handleAddToTodo(issue)}
                           >
                             <PlusCircle className="h-4 w-4 mr-2" />
                             Add to Todo
@@ -299,6 +342,16 @@ export function AuditIssues({ issues, onAddToTodo, projectUrl }: AuditIssuesProp
           )}
         </div>
       </CardContent>
+
+      {selectedIssue && (
+        <AddToTodoDialog
+          open={addToTodoOpen}
+          onOpenChange={setAddToTodoOpen}
+          onConfirm={handleConfirmAddToTodo}
+          issueTitle={selectedIssue.title}
+          recommendation={selectedIssue.recommendation}
+        />
+      )}
     </Card>
   );
 } 

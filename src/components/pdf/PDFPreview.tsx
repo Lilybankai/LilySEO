@@ -16,22 +16,21 @@ import CustomizePanel from './CustomizePanel';
 import { fetchPdfTemplates, savePdfTemplate, deletePdfTemplate } from '@/services/pdf-templates';
 import { PdfTemplate } from './SaveTemplateDialog';
 
-// Register fonts for preview
+// Register fonts for preview - using system fonts with fallbacks
 Font.register({
   family: 'Poppins',
   fonts: [
-    { src: '/fonts/Poppins-Regular.ttf' },
-    { src: '/fonts/Poppins-Bold.ttf', fontWeight: 'bold' },
-    { src: '/fonts/Poppins-Light.ttf', fontWeight: 'light' },
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiEyp8kv8JHgFVrJJfecg.woff', fontWeight: 'normal' }, // Regular
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLCz7Z1xlEw.woff', fontWeight: 'bold' }, // Bold
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLEj6Z1xlEw.woff', fontWeight: 'light' }, // Light
   ],
 });
 
+// Register a fallback sans-serif font to ensure PDF generation works
 Font.register({
-  family: 'Montserrat',
+  family: 'sans-serif',
   fonts: [
-    { src: '/fonts/Montserrat-Regular.ttf' },
-    { src: '/fonts/Montserrat-Bold.ttf', fontWeight: 'bold' },
-    { src: '/fonts/Montserrat-Light.ttf', fontWeight: 'light' },
+    { src: 'https://fonts.gstatic.com/s/opensans/v35/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4gaVc.woff', fontWeight: 'normal' }, // Open Sans as backup
   ],
 });
 
@@ -69,7 +68,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
     primaryColor: whiteLabel?.primary_color || 'hsl(220 70% 50%)',
     secondaryColor: whiteLabel?.secondary_color || '#4b5563',
     companyName: whiteLabel?.company_name || 'LilySEO',
-    fontFamily: 'Poppins, Montserrat, sans-serif',
+    fontFamily: 'Poppins', // Single font name
     logoUrl: whiteLabel?.logo_url,
     contactInfo: whiteLabel?.custom_domain || 'support@lilyseo.com',
     footerText: whiteLabel?.custom_copyright || `© ${new Date().getFullYear()} ${whiteLabel?.company_name || 'LilySEO'}. All rights reserved.`,
@@ -87,7 +86,9 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
       insights: true,
       recommendations: true,
       charts: true,
-      branding: true
+      branding: true,
+      structuredData: true,
+      internalLinks: true
     }
   });
   

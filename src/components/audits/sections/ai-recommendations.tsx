@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/button"
 import { BrainCog, Lightbulb, AlertTriangle, CheckCircle, InfoIcon, PlusCircle, FileText, Search, Edit } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import dynamic from "next/dynamic"
+
+// Dynamically import the TodoButton component
+const TodoButton = dynamic(
+  () => import("@/app/projects/[id]/audits/[auditId]/page.client").then(mod => mod.TodoButton),
+  { ssr: false }
+)
 
 interface AiRecommendation {
   id: string;
@@ -31,13 +37,17 @@ interface AiRecommendationsProps {
   onAddToTodo?: (issueId: string, recommendation: string) => void;
   crawledPages?: any[]; // Add crawled pages for content gap analysis
   projectSettings?: any; // Add project settings for keyword targeting info
+  projectId?: string;
+  auditId?: string;
 }
 
 export function AiRecommendations({ 
   recommendations, 
   onAddToTodo,
   crawledPages = [],
-  projectSettings = {}
+  projectSettings = {},
+  projectId,
+  auditId
 }: AiRecommendationsProps) {
   const [activeTab, setActiveTab] = useState("all");
   const [expandedRecommendation, setExpandedRecommendation] = useState<string | null>(null);
@@ -342,14 +352,27 @@ export function AiRecommendations({
                       
                       {/* Add to todo button */}
                       {onAddToTodo && (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleAddToTodo(recommendation)}
-                        >
-                          <PlusCircle className="h-4 w-4 mr-1" />
-                          Add to Todo List
-                        </Button>
+                        <div>
+                          {projectId && auditId ? (
+                            <div className="relative z-10">
+                              <TodoButton
+                                issueId={recommendation.id}
+                                recommendation={recommendation.title}
+                                projectId={projectId}
+                                auditId={auditId}
+                              />
+                            </div>
+                          ) : (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleAddToTodo(recommendation)}
+                            >
+                              <PlusCircle className="h-4 w-4 mr-1" />
+                              Add to Todo List
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </CardContent>
                   </Card>

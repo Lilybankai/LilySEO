@@ -110,7 +110,9 @@ export function WhiteLabelSettingsForm() {
       insights: true,
       recommendations: true,
       charts: true,
-      branding: true
+      branding: true,
+      structuredData: true,
+      internalLinks: true
     }
   });
   const [isSavingOptions, setIsSavingOptions] = useState(false);

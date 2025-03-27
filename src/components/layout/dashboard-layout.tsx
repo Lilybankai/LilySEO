@@ -18,7 +18,11 @@ import {
   Palette,
   Lock,
   MapPin,
-  CreditCard
+  CreditCard,
+  UserPlus,
+  Calendar,
+  Clock,
+  ChevronRight
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -38,6 +42,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [hasWhiteLabelAccess, setHasWhiteLabelAccess] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [expandedItems, setExpandedItems] = useState<string[]>([])
   
   useEffect(() => {
     async function checkAccess() {
@@ -71,13 +76,43 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     router.push("/auth/login")
   }
   
+  const toggleSubMenu = (itemName: string) => {
+    setExpandedItems(prev => 
+      prev.includes(itemName) 
+        ? prev.filter(item => item !== itemName) 
+        : [...prev, itemName]
+    )
+  }
+  
   const navigation = [
+    // Core features
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Projects", href: "/projects", icon: FileText },
+    
+    // SEO features
     { name: "SEO Audits", href: "/audits", icon: Search },
     { name: "Competitors", href: "/competitors", icon: Users },
-    { name: "To-dos", href: "/todos", icon: CheckSquare },
     { name: "Reports", href: "/reports", icon: BarChart3 },
+    
+    // Task management
+    { name: "Tasks & Todos", href: "/todos", icon: CheckSquare,
+      subItems: [
+        { name: "Kanban Board", href: "/todos?view=kanban", icon: CheckSquare },
+        { name: "Calendar", href: "/todos?view=calendar", icon: Calendar },
+        { name: "Time Tracking", href: "/todos?view=time", icon: Clock },
+        { name: "Metrics", href: "/todos?view=metrics", icon: BarChart3 }
+      ]
+    },
+    
+    // Team features
+    { name: "Team Management", href: "/team", icon: UserPlus, proAndAbove: true,
+      subItems: [
+        { name: "Team Members", href: "/team", icon: UserPlus },
+        { name: "Task Assignments", href: "/team/assignments", icon: CheckSquare },
+      ]
+    },
+    
+    // Lead generation
     { name: "Lead Finder", href: "/lead-finder", icon: MapPin, enterpriseOnly: true },
   ]
   
@@ -116,24 +151,87 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Sidebar navigation */}
           <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+              const isActive = item.subItems 
+                ? pathname === item.href || pathname.startsWith(`${item.href}/`) || item.subItems.some(subItem => 
+                    pathname === subItem.href || pathname.startsWith(`${subItem.href}/`) || 
+                    (pathname.includes('?') && pathname.split('?')[0] === item.href.split('?')[0] && pathname.includes(subItem.href.split('?')[1]))
+                  )
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              
+              const isExpanded = expandedItems.includes(item.name);
+              
               return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center px-4 py-2 text-sm rounded-md ${
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                  {!isLoading && item.enterpriseOnly && (
-                    <Lock className="ml-2 h-4 w-4 text-muted-foreground" />
+                <div key={item.name} className="space-y-1">
+                  {item.subItems ? (
+                    <button
+                      onClick={() => toggleSubMenu(item.name)}
+                      className={`flex items-center justify-between w-full px-4 py-2 text-sm rounded-md ${
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <item.icon className="mr-3 h-5 w-5" />
+                        {item.name}
+                        {!isLoading && item.enterpriseOnly && (
+                          <Lock className="ml-2 h-4 w-4 text-muted-foreground" />
+                        )}
+                        {!isLoading && item.proAndAbove && (
+                          <Lock className="ml-2 h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                        <ChevronRight className="h-4 w-4" />
+                      </div>
+                    </button>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      className={`flex items-center px-4 py-2 text-sm rounded-md ${
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <item.icon className="mr-3 h-5 w-5" />
+                      {item.name}
+                      {!isLoading && item.enterpriseOnly && (
+                        <Lock className="ml-2 h-4 w-4 text-muted-foreground" />
+                      )}
+                      {!isLoading && item.proAndAbove && (
+                        <Lock className="ml-2 h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Link>
                   )}
-                </Link>
-              )
+                  
+                  {/* Render submenu items if expanded */}
+                  {item.subItems && isExpanded && (
+                    <div className="pl-10 space-y-1">
+                      {item.subItems.map(subItem => {
+                        const isSubActive = pathname === subItem.href || 
+                          pathname.startsWith(`${subItem.href}/`) || 
+                          (pathname.includes('?') && pathname.split('?')[0] === item.href.split('?')[0] && pathname.includes(subItem.href.split('?')[1]));
+                        
+                        return (
+                          <Link
+                            key={subItem.name}
+                            href={subItem.href}
+                            className={`flex items-center px-2 py-1.5 text-sm rounded-md ${
+                              isSubActive
+                                ? "bg-primary/10 text-primary"
+                                : "text-foreground hover:bg-muted"
+                            }`}
+                          >
+                            <subItem.icon className="mr-2 h-4 w-4" />
+                            {subItem.name}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
             })}
           </nav>
           

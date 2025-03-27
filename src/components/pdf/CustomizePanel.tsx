@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { 
   BookOpen, Save, Layout, FileText, 
-  PaintBucket, Type, FileDigit, Settings2
+  PaintBucket, Type, FileDigit, Settings2, Code, Network
 } from "lucide-react";
 import { PdfTheme } from '@/context/ThemeContext';
 import SaveTemplateDialog, { PdfTemplate } from './SaveTemplateDialog';
@@ -177,6 +177,30 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   id="charts" 
                   checked={theme.includeOptions.charts}
                   onCheckedChange={(checked) => handleIncludeChange('charts', checked)}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Code className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="structuredData">Structured Data</Label>
+                </div>
+                <Switch 
+                  id="structuredData" 
+                  checked={theme.includeOptions.structuredData}
+                  onCheckedChange={(checked) => handleIncludeChange('structuredData', checked)}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Network className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="internalLinks">Internal Links</Label>
+                </div>
+                <Switch 
+                  id="internalLinks" 
+                  checked={theme.includeOptions.internalLinks}
+                  onCheckedChange={(checked) => handleIncludeChange('internalLinks', checked)}
                 />
               </div>
             </div>

@@ -12,6 +12,8 @@ export interface TodoButtonProps {
   recommendation?: string
   projectId: string
   auditId?: string
+  scheduledFor?: string
+  assigneeId?: string
   onComplete?: () => void
   className?: string
 }
@@ -21,6 +23,8 @@ export function TodoButton({
   recommendation,
   projectId,
   auditId,
+  scheduledFor,
+  assigneeId,
   onComplete,
   className,
 }: TodoButtonProps) {
@@ -50,6 +54,8 @@ export function TodoButton({
         projectId,
         issueId,
         auditId,
+        scheduledFor,
+        assigneeId
       })
 
       // Check if both projectId and auditId are valid UUIDs
@@ -73,6 +79,8 @@ export function TodoButton({
       }
       
       if (auditId) todoItem.auditId = auditId
+      if (scheduledFor) todoItem.scheduledFor = scheduledFor
+      if (assigneeId) todoItem.assignedTo = assigneeId
 
       console.log("[DEBUG-TODO] Final todoItem being sent:", todoItem);
       

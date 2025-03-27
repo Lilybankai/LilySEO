@@ -15,31 +15,31 @@ export function AuditListItem({ audit, projectId }: AuditListItemProps) {
       case "completed":
         return {
           label: "Completed",
-          icon: CheckCircle2,
+          icon: "CheckCircle2",
           color: "text-green-500"
         };
       case "processing":
         return {
           label: "Processing",
-          icon: Loader2,
+          icon: "Loader2",
           color: "text-blue-500"
         };
       case "pending":
         return {
           label: "Pending",
-          icon: Clock,
+          icon: "Clock",
           color: "text-yellow-500"
         };
       case "failed":
         return {
           label: "Failed",
-          icon: AlertCircle,
+          icon: "AlertCircle",
           color: "text-red-500"
         };
       default:
         return {
           label: audit.status || "Unknown",
-          icon: Clock,
+          icon: "Clock",
           color: "text-gray-500"
         };
     }
@@ -49,9 +49,9 @@ export function AuditListItem({ audit, projectId }: AuditListItemProps) {
 
   return (
     <DashboardActivityItem
-      icon={Search}
+      icon="Search"
       title={`Audit for ${audit.url || 'Unknown URL'}`}
-      description={`Score: ${(audit.report_data as any)?.score || "N/A"}`}
+      description={`Score: ${audit.score ? `${audit.score}/100` : "N/A"}`}
       timestamp={new Date(audit.created_at).toLocaleDateString()}
       status={statusConfig}
       link={`/projects/${projectId}/audits/${audit.id}`}

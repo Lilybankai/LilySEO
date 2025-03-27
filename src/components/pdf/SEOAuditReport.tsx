@@ -9,22 +9,30 @@ import IssueSection from './IssueSection';
 import PerformanceMetrics from './PerformanceMetrics';
 import EndPage from './EndPage';
 
-// Register custom fonts
+// Register custom fonts - using Google Fonts hosted versions
 Font.register({
   family: 'Poppins',
   fonts: [
-    { src: '/fonts/Poppins-Regular.ttf' },
-    { src: '/fonts/Poppins-Bold.ttf', fontWeight: 'bold' },
-    { src: '/fonts/Poppins-Light.ttf', fontWeight: 'light' },
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiEyp8kv8JHgFVrJJfecg.woff', fontWeight: 'normal' }, // Regular
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLCz7Z1xlEw.woff', fontWeight: 'bold' }, // Bold
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLEj6Z1xlEw.woff', fontWeight: 'light' }, // Light
   ],
 });
 
 Font.register({
   family: 'Montserrat',
   fonts: [
-    { src: '/fonts/Montserrat-Regular.ttf' },
-    { src: '/fonts/Montserrat-Bold.ttf', fontWeight: 'bold' },
-    { src: '/fonts/Montserrat-Light.ttf', fontWeight: 'light' },
+    { src: 'https://fonts.gstatic.com/s/montserrat/v25/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCs16Hw_aXc.woff', fontWeight: 'normal' }, // Regular
+    { src: 'https://fonts.gstatic.com/s/montserrat/v25/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCuM73w_aXc.woff', fontWeight: 'bold' }, // Bold
+    { src: 'https://fonts.gstatic.com/s/montserrat/v25/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCu173w_aXc.woff', fontWeight: 'light' }, // Light
+  ],
+});
+
+// Register a fallback sans-serif font to ensure PDF generation works
+Font.register({
+  family: 'sans-serif',
+  fonts: [
+    { src: 'https://fonts.gstatic.com/s/opensans/v35/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4gaVc.woff', fontWeight: 'normal' }, // Open Sans as backup
   ],
 });
 
@@ -230,7 +238,7 @@ const SEOAuditReport: React.FC<SEOAuditReportProps> = ({
 
   // Calculate what page numbers should be shown based on which sections are included
   let pageCounter = 1;
-  const coverPage = true; // Always include
+  const coverPage = true; // Always included
   pageCounter++; // Start counting after cover page
 
   // Page numbers for main section
@@ -238,6 +246,8 @@ const SEOAuditReport: React.FC<SEOAuditReportProps> = ({
   const performanceMetricsPage = theme.includeOptions.performance ? pageCounter++ : null;
   const onPageSEOPage = theme.includeOptions.onPageSEO ? pageCounter++ : null;
   const technicalSEOPage = theme.includeOptions.technicalSEO ? pageCounter++ : null;
+  const structuredDataPage = theme.includeOptions.structuredData ? pageCounter++ : null;
+  const internalLinksPage = theme.includeOptions.internalLinks ? pageCounter++ : null;
   const userExperiencePage = theme.includeOptions.userExperience ? pageCounter++ : null;
   const endPage = true; // Always include
   
@@ -335,6 +345,156 @@ const SEOAuditReport: React.FC<SEOAuditReportProps> = ({
           </View>
           {technicalSEOPage && (
             <Text style={styles.pageNumber}>{technicalSEOPage}</Text>
+          )}
+        </Page>
+      )}
+      
+      {/* Structured Data Issues */}
+      {theme.includeOptions.structuredData && (
+        <Page size={theme.pageSize} style={styles.page}>
+          <View style={styles.section}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: theme.primaryColor }}>
+              Structured Data Validation
+            </Text>
+            <Text style={{ fontSize: 12, marginBottom: 20, color: theme.secondaryColor }}>
+              Analysis of your website's schema.org markup and structured data implementation
+            </Text>
+            
+            {reportData.issues && reportData.issues.schemaMarkup && reportData.issues.schemaMarkup.length > 0 ? (
+              <IssueSection 
+                title="Schema Markup Issues"
+                issues={reportData.issues.schemaMarkup}
+              />
+            ) : (
+              <View style={{ padding: 20, backgroundColor: '#f8f9fa', borderRadius: 5, marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, color: '#10b981', fontWeight: 'bold' }}>
+                  No Schema Markup Issues Detected
+                </Text>
+                <Text style={{ fontSize: 12, color: theme.secondaryColor, marginTop: 10 }}>
+                  Your website's structured data implementation appears to be properly configured.
+                  Well-implemented schema markup helps search engines understand your content and can enable
+                  rich results in search engine results pages.
+                </Text>
+              </View>
+            )}
+          </View>
+          
+          <View style={styles.footer}>
+            <Text>{theme.footerText}</Text>
+          </View>
+          {structuredDataPage && (
+            <Text style={styles.pageNumber}>{structuredDataPage}</Text>
+          )}
+        </Page>
+      )}
+      
+      {/* Internal Links Analysis */}
+      {theme.includeOptions.internalLinks && reportData.internalLinkData && (
+        <Page size={theme.pageSize} style={styles.page}>
+          <View style={styles.section}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: theme.primaryColor }}>
+              Internal Link Optimization
+            </Text>
+            <Text style={{ fontSize: 12, marginBottom: 20, color: theme.secondaryColor }}>
+              Analysis of your website's internal linking structure and opportunities for improvement
+            </Text>
+            
+            {/* Internal Link Statistics */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>Link Statistics</Text>
+              
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: 'bold' }}>Total Pages</Text>
+                  <Text style={{ fontSize: 16 }}>{reportData.internalLinkData.graph.nodes.length}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: 'bold' }}>Total Links</Text>
+                  <Text style={{ fontSize: 16 }}>{reportData.internalLinkData.graph.links.length}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: 'bold' }}>Orphaned Pages</Text>
+                  <Text style={{ fontSize: 16 }}>{reportData.internalLinkData.orphanedPages.length}</Text>
+                </View>
+              </View>
+            </View>
+            
+            {/* Orphaned Pages */}
+            {reportData.internalLinkData.orphanedPages.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#e11d48' }}>
+                  Orphaned Pages
+                </Text>
+                <Text style={{ fontSize: 12, marginBottom: 10, color: theme.secondaryColor }}>
+                  Pages with no incoming links that should be connected to your site structure
+                </Text>
+                
+                <View style={{ backgroundColor: '#fef2f2', padding: 10, borderRadius: 5 }}>
+                  {reportData.internalLinkData.orphanedPages.slice(0, 5).map((page: string, index: number) => (
+                    <Text key={index} style={{ fontSize: 11, marginBottom: 4 }}>• {page}</Text>
+                  ))}
+                  {reportData.internalLinkData.orphanedPages.length > 5 && (
+                    <Text style={{ fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
+                      + {reportData.internalLinkData.orphanedPages.length - 5} more orphaned pages
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+            
+            {/* Link Improvement Suggestions */}
+            {reportData.internalLinkData.suggestions.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>
+                  Link Improvement Suggestions
+                </Text>
+                <Text style={{ fontSize: 12, marginBottom: 10, color: theme.secondaryColor }}>
+                  Recommendations to improve internal linking structure and user navigation
+                </Text>
+                
+                {reportData.internalLinkData.suggestions.slice(0, 3).map((suggestion: { target: string, sources: string[], reason: string }, index: number) => (
+                  <View key={index} style={{ marginBottom: 10, padding: 8, backgroundColor: '#f0f9ff', borderRadius: 5 }}>
+                    <Text style={{ fontSize: 12, fontWeight: 'bold' }}>
+                      Add links to: {suggestion.target}
+                    </Text>
+                    <Text style={{ fontSize: 11, marginBottom: 4, color: theme.secondaryColor }}>
+                      {suggestion.reason}
+                    </Text>
+                    <Text style={{ fontSize: 11 }}>
+                      From pages: {suggestion.sources.slice(0, 2).join(', ')}
+                      {suggestion.sources.length > 2 ? ` + ${suggestion.sources.length - 2} more` : ''}
+                    </Text>
+                  </View>
+                ))}
+                
+                {reportData.internalLinkData.suggestions.length > 3 && (
+                  <Text style={{ fontSize: 11, fontStyle: 'italic' }}>
+                    + {reportData.internalLinkData.suggestions.length - 3} more suggestions
+                  </Text>
+                )}
+              </View>
+            )}
+            
+            {/* Best Practices */}
+            <View>
+              <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>
+                Internal Linking Best Practices
+              </Text>
+              <View style={{ marginLeft: 10 }}>
+                <Text style={{ fontSize: 11, marginBottom: 4 }}>• Use descriptive anchor text with relevant keywords</Text>
+                <Text style={{ fontSize: 11, marginBottom: 4 }}>• Create a logical site structure with clear navigation</Text>
+                <Text style={{ fontSize: 11, marginBottom: 4 }}>• Link from high-authority pages to important content</Text>
+                <Text style={{ fontSize: 11, marginBottom: 4 }}>• Ensure every page is reachable within 3-4 clicks from the homepage</Text>
+                <Text style={{ fontSize: 11 }}>• Regularly audit and fix orphaned and underlinked pages</Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={styles.footer}>
+            <Text>{theme.footerText}</Text>
+          </View>
+          {internalLinksPage && (
+            <Text style={styles.pageNumber}>{internalLinksPage}</Text>
           )}
         </Page>
       )}

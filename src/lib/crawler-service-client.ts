@@ -119,4 +119,65 @@ export async function setProjectWebhookUrl(
     console.error("Error in setProjectWebhookUrl:", error);
     return false;
   }
+}
+
+/**
+ * Poll the audit status until it's completed or reaches max attempts
+ * @param auditId The ID of the audit to check
+ * @param maxAttempts Maximum number of polling attempts
+ * @param intervalMs Time between polling attempts in milliseconds
+ * @param callback Optional callback that receives status updates
+ * @returns A promise that resolves when the audit is complete or max attempts reached
+ */
+export async function pollAuditUntilComplete(
+  auditId: string,
+  maxAttempts: number = 25 , // Default 25 attempts
+  intervalMs: number = 5000, // Default 5 seconds
+  callback?: (status: any) => void
+): Promise<any> {
+  let attempts = 0;
+  
+  return new Promise((resolve, reject) => {
+    const checkStatus = async () => {
+      try {
+        const statusResponse = await getAuditStatus(auditId);
+        
+        // Call the callback with the latest status
+        if (callback) {
+          callback(statusResponse);
+        }
+        
+        // If the audit is complete or failed, resolve with the status
+        if (statusResponse.status === "completed" || statusResponse.status === "failed") {
+          return resolve(statusResponse);
+        }
+        
+        // Increment attempt counter
+        attempts++;
+        
+        // If we've reached the maximum attempts, resolve with current status
+        if (attempts >= maxAttempts) {
+          console.log(`Reached maximum ${maxAttempts} attempts checking audit status`);
+          return resolve(statusResponse);
+        }
+        
+        // Otherwise, set timeout to check again
+        setTimeout(checkStatus, intervalMs);
+      } catch (error) {
+        console.error("Error polling audit status:", error);
+        // If there's an error, still keep trying until max attempts
+        attempts++;
+        
+        if (attempts >= maxAttempts) {
+          return reject(error);
+        }
+        
+        // Otherwise, set timeout to check again
+        setTimeout(checkStatus, intervalMs);
+      }
+    };
+    
+    // Start the polling
+    checkStatus();
+  });
 } 

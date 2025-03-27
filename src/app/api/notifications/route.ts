@@ -19,11 +19,13 @@ export async function GET() {
       );
     }
     
+    const userId = session.user.id;
+    
     // Fetch notifications
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
-      .eq("user_id", session.user.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
     
     if (error) {
@@ -34,7 +36,10 @@ export async function GET() {
       );
     }
     
-    return NextResponse.json(data);
+    return NextResponse.json({
+      success: true,
+      notifications: data
+    });
     
   } catch (error) {
     console.error("Error in notifications API:", error);
@@ -63,6 +68,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const userId = session.user.id;
+    
     // Get request body
     const body = await request.json();
     const { title, message } = body;
@@ -78,10 +85,11 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("notifications")
       .insert({
-        user_id: session.user.id,
+        user_id: userId,
         title,
         message,
-        is_read: false
+        is_read: false,
+        created_at: new Date().toISOString()
       })
       .select();
     
@@ -93,7 +101,10 @@ export async function POST(request: Request) {
       );
     }
     
-    return NextResponse.json(data[0]);
+    return NextResponse.json({
+      success: true,
+      notification: data[0]
+    });
     
   } catch (error) {
     console.error("Error in notifications API:", error);

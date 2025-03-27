@@ -122,10 +122,30 @@ export default async function DashboardPage() {
   // Check if this is a new user with no projects
   const isNewUser = !projects || projects.length === 0
   
-  // Calculate average SEO score from audits
-  const averageSeoScore = projectAudits && projectAudits.length > 0
-    ? Math.round(projectAudits.reduce((sum, audit) => sum + (audit.score || 0), 0) / projectAudits.length)
-    : 0;
+  // Get latest audit metrics for each project
+  const { data: projectMetrics } = await supabase
+    .from("audit_metrics_history")
+    .select(`
+      project_id,
+      created_at,
+      overall_score,
+      fixes_needed,
+      on_page_seo_score,
+      performance_score,
+      usability_score,
+      links_score,
+      total_issues
+    `)
+    .in('project_id', projects?.map(p => p.id) || [])
+    .order('created_at', { ascending: false })
+
+  // Group metrics by project_id and get the latest one for each project
+  const latestMetricsByProject = projectMetrics?.reduce((acc, metric) => {
+    if (!acc[metric.project_id] || new Date(metric.created_at) > new Date(acc[metric.project_id].created_at)) {
+      acc[metric.project_id] = metric;
+    }
+    return acc;
+  }, {} as Record<string, typeof projectMetrics[0]>);
   
   // Get historical data (one month ago) for comparison
   const oneMonthAgo = new Date();
@@ -141,17 +161,36 @@ export default async function DashboardPage() {
   
   const projectGrowth = (projects?.length || 0) - (lastMonthProjects?.length || 0);
   
-  // Get historical SEO score for comparison (from audits created more than a month ago)
-  const { data: lastMonthAudits } = await supabase
-    .from("audits")
-    .select("score")
-    .lt("created_at", oneMonthAgo.toISOString())
-    .in('project_id', projects?.map(p => p.id) || []);
-  
-  const lastMonthAverageScore = lastMonthAudits && lastMonthAudits.length > 0
-    ? Math.round(lastMonthAudits.reduce((sum, audit) => sum + (audit.score || 0), 0) / lastMonthAudits.length)
+  // Get historical metrics for comparison (one month ago)
+  const twoMonthsAgo = new Date();
+  twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+
+  const { data: previousMonthMetrics } = await supabase
+    .from("audit_metrics_history")
+    .select(`
+      project_id,
+      created_at,
+      overall_score,
+      fixes_needed,
+      on_page_seo_score,
+      performance_score
+    `)
+    .in('project_id', projects?.map(p => p.id) || [])
+    .gte('created_at', twoMonthsAgo.toISOString())
+    .lt('created_at', oneMonthAgo.toISOString())
+    .order('created_at', { ascending: false })
+
+  // Calculate average score from metrics history
+  const averageSeoScore = projectMetrics && projectMetrics.length > 0
+    ? Math.round(projectMetrics.reduce((sum, metric) => sum + (metric.overall_score || 0), 0) / projectMetrics.length)
     : 0;
-  
+
+  // Calculate historical score average
+  const previousMonthScores = previousMonthMetrics?.map(metric => metric.overall_score) || [];
+  const lastMonthAverageScore = previousMonthScores.length > 0
+    ? Math.round(previousMonthScores.reduce((sum, score) => sum + (score || 0), 0) / previousMonthScores.length)
+    : 0;
+
   const scoreGrowth = averageSeoScore - lastMonthAverageScore;
   
   // Get historical pending tasks for comparison
@@ -398,14 +437,19 @@ export default async function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {projects.map((project) => {
             const latestAudit = latestAuditsByProject?.[project.id];
+            const latestMetrics = latestMetricsByProject?.[project.id];
+            
+            // Get metrics from our new metrics history if available, otherwise fallback to audit data
+            const seoScore = latestMetrics?.overall_score || latestAudit?.score || 0;
+            const fixesNeeded = latestMetrics?.fixes_needed || 0;
             
             return (
               <DashboardProjectCard
                 key={project.id}
                 project={project}
                 metrics={{
-                  seoScore: latestAudit?.score || 0,
-                  position: latestAudit ? `#${Math.floor(Math.random() * 15) + 1}` : "N/A",
+                  seoScore: seoScore,
+                  fixesNeeded: fixesNeeded,
                   crawlStatus: latestAudit?.status || "pending",
                   lastCrawl: latestAudit ? 
                     new Date(latestAudit.created_at).toLocaleDateString() : 

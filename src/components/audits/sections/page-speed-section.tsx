@@ -8,22 +8,12 @@ import { Zap, Clock, ArrowUpCircle, AlertTriangle } from "lucide-react"
 
 interface PageSpeedProps {
   pageSpeedData: {
-    mobile: {
-      performance?: number;
-      cls?: number;
-      fcp?: number;
-      lcp?: number;
-      tbt?: number;
-    };
-    desktop: {
-      performance?: number;
-      cls?: number;
-      fcp?: number;
-      lcp?: number;
-      tbt?: number;
-    };
+    mobile: any;
+    desktop: any;
   };
   performanceIssues: any[];
+  projectId?: string;
+  auditId?: string;
 }
 
 export function PageSpeedSection({ pageSpeedData, performanceIssues }: PageSpeedProps) {

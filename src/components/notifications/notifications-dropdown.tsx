@@ -16,6 +16,7 @@ import {
   getUnreadNotificationCount, 
   markNotificationAsRead, 
   markAllNotificationsAsRead,
+  createTestNotification,
   Notification
 } from "@/services/notifications";
 
@@ -33,6 +34,7 @@ export function NotificationsDropdown() {
         getUserNotifications(),
         getUnreadNotificationCount(),
       ]);
+      console.log("Loaded notifications:", notificationsData);
       setNotifications(notificationsData);
       setUnreadCount(count);
     } catch (error) {
@@ -102,6 +104,21 @@ export function NotificationsDropdown() {
     }
   };
 
+  // Handle creating a test notification
+  const handleCreateTestNotification = async () => {
+    try {
+      const success = await createTestNotification(
+        "Test Notification", 
+        "This is a test notification created at " + new Date().toLocaleTimeString()
+      );
+      if (success) {
+        loadNotifications();
+      }
+    } catch (error) {
+      console.error("Error creating test notification:", error);
+    }
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -135,6 +152,14 @@ export function NotificationsDropdown() {
         ) : notifications.length === 0 ? (
           <div className="py-8 px-4 text-center text-muted-foreground">
             <p>You have no notifications</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleCreateTestNotification}
+              className="mt-4"
+            >
+              Create Test Notification
+            </Button>
           </div>
         ) : (
           <ScrollArea className="max-h-[400px]">

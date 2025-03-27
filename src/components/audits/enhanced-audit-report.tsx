@@ -18,6 +18,8 @@ import { AuditKeywords } from "./sections/audit-keywords";
 import { AuditBacklinks } from "./sections/audit-backlinks";
 import { AuditCompetitors } from "./sections/audit-competitors";
 import { AuditGoogleData } from "./sections/audit-google-data";
+import { SchemaValidationSection } from "./sections/schema-validation-section";
+import { InternalLinksSection } from "./sections/internal-links-section";
 
 interface EnhancedAuditReportProps {
   audit: {
@@ -55,6 +57,16 @@ interface EnhancedAuditReportProps {
       keywords: Array<any>;
       backlinks: Array<any>;
       competitors: Array<any>;
+      internalLinkData?: {
+        orphanedPages: string[];
+        lowInboundPages: {url: string, count: number}[];
+        topPages: {url: string, inboundCount: number}[];
+        suggestions: {target: string, sources: string[], reason: string}[];
+        graph: {
+          nodes: Array<{id: string, inboundCount: number, outboundCount: number}>;
+          links: Array<{source: string, target: string, text: string}>;
+        };
+      };
       googleData?: {
         searchConsole?: any;
         analytics?: any;
@@ -80,7 +92,7 @@ interface EnhancedAuditReportProps {
       companyName?: string;
     };
   };
-  onAddToTodo: (issueId: string, recommendation: string) => Promise<void>;
+  onAddToTodo: (issueId: string, recommendation: string, options?: { scheduledFor?: string; assigneeId?: string }) => Promise<void>;
 }
 
 export function EnhancedAuditReport({ audit, project, onAddToTodo }: EnhancedAuditReportProps) {
@@ -151,10 +163,12 @@ export function EnhancedAuditReport({ audit, project, onAddToTodo }: EnhancedAud
         className="w-full"
       >
         <ScrollArea className="w-full">
-          <TabsList className="grid grid-cols-5 mb-6">
+          <TabsList className="grid grid-cols-8 mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="issues">Issues</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="structured-data">Structured Data</TabsTrigger>
+            <TabsTrigger value="internal-links">Internal Links</TabsTrigger>
             <TabsTrigger value="backlinks">Backlinks</TabsTrigger>
             <TabsTrigger value="competitors">Competitors</TabsTrigger>
             {audit.report && audit.report.googleData && (
@@ -220,6 +234,44 @@ export function EnhancedAuditReport({ audit, project, onAddToTodo }: EnhancedAud
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">This audit's performance data is not available or is still being processed.</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="structured-data" className="mt-0">
+            {audit.report && audit.report.issues && audit.report.issues.schemaMarkup ? (
+              <SchemaValidationSection 
+                schemaIssues={audit.report.issues.schemaMarkup}
+                onAddToTodo={onAddToTodo}
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Structured Data Validation</CardTitle>
+                  <CardDescription>No structured data validation information available</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">This audit's structured data validation information is not available or is still being processed.</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="internal-links" className="mt-0">
+            {audit.report && audit.report.internalLinkData ? (
+              <InternalLinksSection 
+                internalLinkData={audit.report.internalLinkData}
+                baseUrl={project.url}
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Internal Link Optimization</CardTitle>
+                  <CardDescription>No internal link data available</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">This audit's internal link data is not available or is still being processed.</p>
                 </CardContent>
               </Card>
             )}

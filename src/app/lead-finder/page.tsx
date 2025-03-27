@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import LeadSearch from "@/components/lead-finder/lead-search"
 import LeadsList from "@/components/lead-finder/leads-list"
 import UsageStats from "@/components/lead-finder/usage-stats"
-import { MapPin, Search, Zap } from "lucide-react"
+import { MapPin, Search, Zap, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import Link from "next/link"
@@ -82,6 +82,35 @@ export default function LeadFinderPage() {
           </Button>
         </div>
       </div>
+
+      <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-900">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <Info className="h-5 w-5 text-blue-500" />
+            <CardTitle className="text-lg text-blue-700 dark:text-blue-300">How to Use Lead Finder</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
+            <p>
+              <strong>1. Search for businesses:</strong> Enter a business type (e.g., "Plumber", "Restaurant") and a specific location. 
+              For best results, include the city and country (e.g., "Leeds, UK", "New York, USA").
+            </p>
+            <p>
+              <strong>2. Filter and refine results:</strong> Use the rating filters, search radius, and other options to narrow down your search.
+            </p>
+            <p>
+              <strong>3. Save leads:</strong> Save interesting businesses to your leads list for follow-up and contact management.
+            </p>
+            <p>
+              <strong>4. Export data:</strong> Export your lead data as CSV for use in other marketing tools.
+            </p>
+            <p className="mt-2 font-medium">
+              Note: Each search consumes one search credit from your monthly allocation. Be specific with your location to get the most relevant results.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="search" className="space-y-6">
         <TabsList>

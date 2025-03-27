@@ -36,7 +36,9 @@ export default async function ProjectsPage() {
       project_id,
       created_at,
       score,
-      status
+      status,
+      report,
+      metadata
     `)
     .in('project_id', projects?.map(p => p.id) || [])
     .order('created_at', { ascending: false })
@@ -48,6 +50,9 @@ export default async function ProjectsPage() {
     }
     return acc;
   }, {} as Record<string, typeof projectAudits[0]>);
+  
+  // Debug audit scores
+  console.log('Latest audits with scores and metadata:', latestAuditsByProject);
   
   return (
     <div className="container py-10">
@@ -73,13 +78,59 @@ export default async function ProjectsPage() {
           {projects.map((project) => {
             const latestAudit = latestAuditsByProject?.[project.id];
             
+            // Extract report data if available to get issue count
+            let fixesNeeded = 0;
+            let seoScore = latestAudit?.score || 0;
+            
+            // First check if we have the fixes count in metadata
+            if (latestAudit?.metadata && typeof latestAudit.metadata === 'object') {
+              if ('fixes_needed' in latestAudit.metadata) {
+                fixesNeeded = (latestAudit.metadata as any).fixes_needed || 0;
+              }
+            }
+            
+            // If no fixes in metadata, try to calculate from report
+            if (fixesNeeded === 0 && latestAudit?.report) {
+              try {
+                // Parse the report JSON if it's a string
+                const reportData = typeof latestAudit.report === 'string' 
+                  ? JSON.parse(latestAudit.report) 
+                  : latestAudit.report;
+                
+                // Try to get issue count from the report
+                if (reportData.issues) {
+                  // Sum all issues across categories
+                  Object.values(reportData.issues).forEach((issues: any) => {
+                    if (Array.isArray(issues)) {
+                      fixesNeeded += issues.length;
+                    }
+                  });
+                } else if (reportData.totalIssues) {
+                  // If we have a direct totalIssues count
+                  fixesNeeded = reportData.totalIssues;
+                }
+                
+                // Ensure we have a valid score - if not in the audit record, try to get from report
+                if (!seoScore && reportData.score) {
+                  seoScore = typeof reportData.score === 'number' 
+                    ? reportData.score 
+                    : reportData.score.overall || 0;
+                }
+              } catch (e) {
+                console.error('Error parsing audit report:', e);
+              }
+            }
+            
+            // Ensure the score is a number between 0-100
+            seoScore = Math.max(0, Math.min(100, Math.round(Number(seoScore) || 0)));
+            
             return (
               <DashboardProjectCard
                 key={project.id}
                 project={project}
                 metrics={{
-                  seoScore: latestAudit?.score || 0,
-                  position: latestAudit ? `#${Math.floor(Math.random() * 15) + 1}` : "N/A",
+                  seoScore: seoScore,
+                  fixesNeeded: fixesNeeded,
                   crawlStatus: latestAudit?.status || "pending",
                   lastCrawl: latestAudit ? 
                     new Date(latestAudit.created_at).toLocaleDateString() : 
