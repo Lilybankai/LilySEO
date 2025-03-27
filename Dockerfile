@@ -7,8 +7,9 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies and explicitly add Redis
+RUN npm install --production=false
+RUN npm install @upstash/redis
 
 # Rebuild the source code only when needed
 FROM base AS builder
