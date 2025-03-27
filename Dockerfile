@@ -19,16 +19,15 @@ COPY . .
 
 # Set environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
-# Add mock environment variables to enable build even when credentials aren't available
-ENV NEXT_PUBLIC_SUPABASE_URL=https://placeholder-supabase-url.supabase.co
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-key
-ENV SUPABASE_SERVICE_ROLE_KEY=placeholder-service-role-key
-ENV UPSTASH_REDIS_REST_URL=https://placeholder-redis-url.upstash.io
-ENV UPSTASH_REDIS_REST_TOKEN=placeholder-token
+ENV NEXT_PUBLIC_SUPABASE_URL=https://fleanljrxzbpayfsviec.supabase.co
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZsZWFubGpyeHpicGF5ZnN2aWVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE3MzIxNDUsImV4cCI6MjA1NzMwODE0NX0.TkkssDKy8KAI80IXYPsk44rWt1SqXOXj_zbYvkP4igk
+ENV SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZsZWFubGpyeHpicGF5ZnN2aWVjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MTczMjE0NSwiZXhwIjoyMDU3MzA4MTQ1fQ.NxG8KGHDd3swZVFPFm_TkaXa8PyGP84Zm7KNlVKRtPE
+ENV UPSTASH_REDIS_REST_URL=https://fitting-adder-46027.upstash.io
+ENV UPSTASH_REDIS_REST_TOKEN=AbPLAAIjcDEzNzY4YTc1ZWY0MDM0MGJlOWVjOTcxOTI4NDFhYTMwNnAxMA
 
 # Build the application
 RUN npm run build:css
-RUN npm run build
+RUN NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY npm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
