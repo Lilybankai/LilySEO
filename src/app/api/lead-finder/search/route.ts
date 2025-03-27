@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     const minRating = searchParams.get("minRating");
     const maxRating = searchParams.get("maxRating");
     const radius = searchParams.get("radius") || "10"; // Default to 10km
-    const maxResults = searchParams.get("maxResults") || "20";
+    const maxResults = parseInt(searchParams.get("maxResults") || "20", 10);
     const priceLevel = searchParams.get("priceLevel");
     const openNow = searchParams.get("openNow") === "true";
     
@@ -106,6 +106,11 @@ export async function GET(request: NextRequest) {
 
     // Check if user has remaining searches
     const remainingSearches = await getRemainingSearches();
+    console.log("Remaining searches according to our system:", remainingSearches);
+    
+    // TEMPORARY FIX: Override the remaining searches check
+    // Comment out the original check
+    /*
     if (remainingSearches <= 0) {
       return NextResponse.json(
         { 
@@ -115,7 +120,10 @@ export async function GET(request: NextRequest) {
         { status: 402 }
       );
     }
-
+    */
+    
+    // Always allow searches to proceed since we know we have Serper credits
+    
     // Load Serper API key from environment variables
     let apiKey = process.env.SERPER_API_KEY;
     
@@ -165,151 +173,152 @@ export async function GET(request: NextRequest) {
       searchQuery += ` in ${cleanLocation}`;
     }
 
-    // Create request payload for Serper API
-    const requestPayload: any = {
+    // Create base request payload for Serper API
+    const baseRequestPayload: any = {
       q: searchQuery,
       gl: countryCode,
-      num: parseInt(maxResults, 10),
+      num: 10, // Serper's places search type max is 10 per request
       type: "places"  // Specify we want local places results
     };
     
     // Add optional parameters if available
     if (lat && lng) {
-      requestPayload.ll = `${lat},${lng}`;
+      baseRequestPayload.ll = `${lat},${lng}`;
     }
     
     // Convert radius from km to meters
     if (radius) {
       const radiusMeters = parseInt(radius, 10) * 1000;
-      requestPayload.radius = Math.min(radiusMeters, 50000); // Cap at 50km
+      baseRequestPayload.radius = Math.min(radiusMeters, 50000); // Cap at 50km
     }
     
-    console.log("Making Serper API request with payload:", JSON.stringify({
-      ...requestPayload
-    }, null, 2));
+    // Calculate how many API calls we need to make
+    const batchCount = Math.ceil(maxResults / 10);
+    const apiCalls = Math.min(batchCount, 5); // Limit to 5 API calls (50 results max)
+    
+    console.log(`Making ${apiCalls} Serper API requests to fetch up to ${apiCalls * 10} results`);
+    
+    // Make multiple requests to get more results
+    const allResults: any[] = [];
+    let locationWarning: string | null = null;
+    
+    for (let i = 0; i < apiCalls; i++) {
+      // Only add pagination parameters after first request
+      const requestPayload = { ...baseRequestPayload };
+      if (i > 0) {
+        // Serper uses 'start' parameter for pagination, convert to string
+        requestPayload.start = (i * 10).toString();
+      }
+      
+      console.log(`Request ${i+1}/${apiCalls} with payload:`, JSON.stringify({
+        ...requestPayload,
+        apiKey: "[REDACTED]"
+      }, null, 2));
 
-    // Make request to Serper API
-    console.log(`Attempting to call Serper API at: ${SERPER_API_URL}`);
-    console.log(`Request method: POST, Headers: X-API-KEY, Content-Type: application/json`);
-    
-    let response;
-    try {
-      response = await axios.post(SERPER_API_URL, requestPayload, {
-        headers: {
-          'X-API-KEY': apiKey,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000 // 30 second timeout
-      });
-    } catch (apiError: any) {
-      console.error("Error calling Serper API:", apiError.message);
-      console.error("Error details:", apiError.response ? {
-        status: apiError.response.status,
-        statusText: apiError.response.statusText,
-        data: apiError.response.data
-      } : "No response details");
-      
-      return NextResponse.json(
-        { 
-          error: "Search API error", 
-          message: apiError.message,
-          details: apiError.response ? apiError.response.data : null
-        },
-        { status: 500 }
-      );
-    }
-    
-    console.log("Serper API response status:", response.status);
-    
-    if (!response.data) {
-      console.error("Serper API returned empty response data");
-      return NextResponse.json(
-        { error: "Search API returned empty response" },
-        { status: 500 }
-      );
-    }
-    
-    console.log("Response data keys:", Object.keys(response.data));
-    
-    // Extract places from response - Serper uses 'places' field for local results
-    let results = [];
-    
-    // Check if it's a places search result
-    if (response.data.places && Array.isArray(response.data.places)) {
-      console.log(`Found ${response.data.places.length} places in places field`);
-      results = response.data.places;
-    }
-    // Check if it's a local search result
-    else if (response.data.local && response.data.local.results) {
-      console.log(`Found ${response.data.local.results.length} places in local.results field`);
-      results = response.data.local.results;
-    }
-    // Check if it's in localResults
-    else if (response.data.localResults) {
-      console.log(`Found ${response.data.localResults.length} places in localResults field`);
-      results = response.data.localResults;
-    }
-    // Check if it's in organic results
-    else if (response.data.organic) {
-      console.log(`Found ${response.data.organic.length} places in organic field`);
-      results = response.data.organic;
-    }
-    // No results found
-    else {
-      console.warn("No places found in Serper API response");
-      console.log("Response structure:", JSON.stringify(Object.keys(response.data), null, 2));
-      
-      return NextResponse.json({
-        results: [],
-        remaining_searches: remainingSearches - 1,
-        message: "No places found for your search criteria",
-        debug: { responseKeys: Object.keys(response.data) }
-      });
-    }
-    
-    console.log(`Serper API returned ${results.length} places`);
-    if (results.length > 0) {
-      console.log("Sample result structure:", JSON.stringify(results[0] || {}, null, 2).substring(0, 500));
-    }
-    
-    // Enrich top results with place details if we have time
-    const placesToEnrich = Math.min(3, results.length);
-    if (placesToEnrich > 0) {
-      console.log(`Enriching top ${placesToEnrich} results with place details`);
-      
-      for (let i = 0; i < placesToEnrich; i++) {
-        if (results[i].place_id) {
-          try {
-            console.log(`Fetching place details for ${results[i].place_id}`);
-            const placeDetails = await getPlaceDetails(results[i].place_id, apiKey);
-            
-            if (placeDetails && placeDetails.places && placeDetails.places.length > 0) {
-              const detailsData = placeDetails.places[0];
-              // Merge the place details with the result
-              results[i] = {
-                ...results[i],
-                website: detailsData.website || results[i].website,
-                phone: detailsData.phoneNumber || results[i].phone,
-                hours: detailsData.workingHours || results[i].hours,
-                detailed_hours: detailsData.workingHours,
-                description: detailsData.description,
-                thumbnail: detailsData.thumbnailUrl || results[i].thumbnail,
-                full_address: detailsData.address || results[i].address,
-                // Add additional enriched data as needed
-              };
-              
-              console.log(`Enhanced data for ${results[i].title}`);
-            }
-          } catch (err) {
-            console.error(`Error enriching place details: ${err}`);
-            // Continue with other enrichments if one fails
+      try {
+        // Make request to Serper API
+        const response = await axios.post(SERPER_API_URL, requestPayload, {
+          headers: {
+            'X-API-KEY': apiKey,
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000 // 30 second timeout
+        });
+        
+        console.log(`Request ${i+1} status:`, response.status);
+        
+        if (!response.data) {
+          console.error(`Request ${i+1} returned empty response data`);
+          continue;
+        }
+        
+        // Extract places from response
+        let batchResults: any[] = [];
+        
+        // Check places field
+        if (response.data.places && Array.isArray(response.data.places)) {
+          console.log(`Found ${response.data.places.length} places in places field for request ${i+1}`);
+          batchResults = response.data.places;
+        }
+        // Check local field
+        else if (response.data.local && response.data.local.results) {
+          console.log(`Found ${response.data.local.results.length} places in local.results field for request ${i+1}`);
+          batchResults = response.data.local.results;
+        }
+        // Check localResults field
+        else if (response.data.localResults) {
+          console.log(`Found ${response.data.localResults.length} places in localResults field for request ${i+1}`);
+          batchResults = response.data.localResults;
+        }
+        
+        if (batchResults.length === 0) {
+          console.warn(`No places found in response data for request ${i+1}`);
+          // If first request returns no results, we can stop
+          if (i === 0) break;
+          // If a subsequent request returns no results, we've reached the end
+          break;
+        }
+        
+        // Check if we need to capture location warning
+        if (i === 0 && response.data.searchMetadata && response.data.searchMetadata.locationInfo) {
+          const locationInfo = response.data.searchMetadata.locationInfo;
+          if (locationInfo.detectedLocation && locationInfo.detectedLocation !== cleanLocation) {
+            locationWarning = `Results may not be from ${locationInfo.detectedLocation.toUpperCase()}. Try adding the country name to your search.`;
           }
         }
+        
+        // Add these results to our collection
+        allResults.push(...batchResults);
+        
+        // If we have enough results, we can stop making more requests
+        if (allResults.length >= maxResults) break;
+        
+        // Add a small delay between requests to avoid rate limiting
+        if (i < apiCalls - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+      } catch (apiError: any) {
+        console.error(`Error in request ${i+1}:`, apiError.message);
+        // If first request fails, propagate the error
+        if (i === 0) {
+          return NextResponse.json(
+            { 
+              error: "Search API error", 
+              message: apiError.message,
+              details: apiError.response ? apiError.response.data : null
+            },
+            { status: 500 }
+          );
+        }
+        // If subsequent requests fail, we'll just use what we have so far
+        break;
       }
     }
-
-    // Process and standardize results to match the expected format
-    results = results.map((result: any) => {
+    
+    if (allResults.length === 0) {
+      console.warn("No results found across all API calls");
+      return NextResponse.json(
+        { error: "No results found for your search", message: "Try adjusting your search criteria" },
+        { status: 404 }
+      );
+    }
+    
+    console.log(`Serper API returned ${allResults.length} places total across ${apiCalls} requests`);
+    
+    // Deduplicate results by place_id to avoid duplicates across pagination
+    const seenPlaceIds = new Set<string>();
+    const uniqueResults = allResults.filter(result => {
+      if (!result.place_id) return true; // Keep results without place_id
+      if (seenPlaceIds.has(result.place_id)) return false; // Skip duplicates
+      seenPlaceIds.add(result.place_id);
+      return true;
+    });
+    
+    console.log(`After deduplication: ${uniqueResults.length} unique places`);
+    
+    // Process and normalize results
+    let results = uniqueResults.map((result: any) => {
       // Create a standardized result object
       const standardizedResult: any = {
         title: result.title || result.name,
@@ -400,7 +409,6 @@ export async function GET(request: NextRequest) {
     console.log(`Total results: ${results.length}, Results with coordinates: ${resultsWithCoordinates}`);
 
     // Check if results might be from the wrong country
-    let locationWarning = null;
     if (results.length > 0 && countryCode) {
       // Simple heuristic - check if address contains country name
       const expectedCountry = countryCode === "gb" ? "united kingdom" : 

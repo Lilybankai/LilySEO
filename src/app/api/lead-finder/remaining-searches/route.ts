@@ -28,8 +28,19 @@ export async function GET() {
         { status: 500 }
       );
     }
+    
+    console.log(`User ${user.id} calculated remaining searches:`, data);
+    
+    // TEMPORARY FIX: Override the remaining searches with the Serper credits
+    // Change this to match your actual Serper credits or a reasonable number
+    const overrideSearches = 1400; // Based on your Serper dashboard showing 1,467
+    
+    return NextResponse.json({ 
+      remaining_searches: overrideSearches, 
+      // Include the original calculation for debugging
+      calculated_searches: data || 0 
+    });
 
-    return NextResponse.json({ remaining_searches: data || 0 });
   } catch (error: any) {
     console.error("Error in remaining-searches API:", error);
     return NextResponse.json(

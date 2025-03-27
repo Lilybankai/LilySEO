@@ -43,14 +43,19 @@ export default function LocationAutocomplete({
   const [inputValue, setInputValue] = useState(value)
   const [scriptLoaded, setScriptLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [apiKeyLoaded, setApiKeyLoaded] = useState(false)
   
   // Check if Google Maps is already loaded when component mounts
   useEffect(() => {
-    if (window.google?.maps?.places && !scriptLoaded) {
+    if (typeof window !== 'undefined' && window.google?.maps?.places && !scriptLoaded) {
       console.log("Google Maps Places API already loaded globally");
       setScriptLoaded(true);
       initializeAutocomplete();
     }
+    
+    // Set API key loaded state after checking
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyA98HLbQAzo489KysxY3tX6pjnRjCzpYiM'
+    setApiKeyLoaded(!!apiKey);
   }, [scriptLoaded]);
 
   // Function to initialize the autocomplete functionality
@@ -172,13 +177,11 @@ export default function LocationAutocomplete({
     setError("Failed to load location services");
   }
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyA98HLbQAzo489KysxY3tX6pjnRjCzpYiM'
-
   return (
     <>
-      {!scriptLoaded && !window.google?.maps?.places && apiKey && (
+      {!scriptLoaded && apiKeyLoaded && typeof window !== 'undefined' && !window.google?.maps?.places && (
         <Script
-          src={`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initAutocomplete`}
+          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyA98HLbQAzo489KysxY3tX6pjnRjCzpYiM'}&libraries=places&callback=initAutocomplete`}
           onError={handleScriptError}
           strategy="afterInteractive"
         />
