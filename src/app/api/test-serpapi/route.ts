@@ -15,7 +15,7 @@ export async function GET() {
     const requestPayload = {
       "q": "cafe in Ontario, Canada",
       "gl": "ca",
-      "num": 3, // Limit to 3 results for testing to reduce quota usage
+      "num": 10, // Increased from 3 to 10 for testing larger results
       "type": "places",
       "ll": "51.253775,-85.3232139",
       "radius": 50000
@@ -68,7 +68,7 @@ export async function GET() {
     console.log(`Total results: ${places.length}, Results with coordinates: ${resultsWithCoordinates}`);
     
     // Limit results to prevent array size issues
-    const limitedResults = places.slice(0, 10);
+    const limitedResults = places.slice(0, 20); // Increased from 10 to 20
     
     return NextResponse.json({
       success: true,

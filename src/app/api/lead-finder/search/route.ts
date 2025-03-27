@@ -426,22 +426,37 @@ export async function GET(request: NextRequest) {
     console.log(`Limiting results to ${requestedMax} as requested (from ${results.length} available)`);
     
     // Add safety check - ensure results is not too large to prevent "Invalid array length" errors
-    // Frontend components might struggle with extremely large arrays
-    const MAX_SAFE_RESULTS = 50; // Frontend can safely handle this many results
+    // Allow up to 100 results, but with safety checks
+    const MAX_SAFE_RESULTS = 100; // Increased from 50 to 100
     results = results.slice(0, Math.min(requestedMax, MAX_SAFE_RESULTS));
     
-    // Apply safety checks to each result's properties
+    // Apply safety checks to each result's properties to prevent array size issues
     results = results.map((result: any) => {
       // Limit any array properties to reasonable sizes
-      if (result.types && Array.isArray(result.types) && result.types.length > 10) {
-        result.types = result.types.slice(0, 10);
+      if (result.types && Array.isArray(result.types) && result.types.length > 20) {
+        result.types = result.types.slice(0, 20);
       }
-      if (result.type && Array.isArray(result.type) && result.type.length > 10) {
-        result.type = result.type.slice(0, 10);
+      if (result.type && Array.isArray(result.type) && result.type.length > 20) {
+        result.type = result.type.slice(0, 20);
       }
-      if (result.categories && Array.isArray(result.categories) && result.categories.length > 10) {
-        result.categories = result.categories.slice(0, 10);
+      if (result.categories && Array.isArray(result.categories) && result.categories.length > 20) {
+        result.categories = result.categories.slice(0, 20);
       }
+      
+      // Ensure all array properties are properly initialized
+      if (result.type === undefined || result.type === null) {
+        result.type = [];
+      } else if (!Array.isArray(result.type) && typeof result.type === 'string') {
+        // Convert single string to array if needed
+        result.type = [result.type];
+      }
+      
+      // Ensure values aren't undefined/null to prevent serialization issues
+      Object.keys(result).forEach(key => {
+        if (result[key] === undefined) {
+          delete result[key]; // Remove undefined values that can cause serialization issues
+        }
+      });
       
       return result;
     });
