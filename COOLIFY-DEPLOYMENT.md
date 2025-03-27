@@ -19,7 +19,7 @@ This guide explains how to deploy the LilySEO frontend application to Coolify fo
 4. Select the LilySEO repository
 5. Choose Docker as the deployment method
 6. Configure build settings:
-   - Dockerfile path: `lilyseo-frontend/Dockerfile`
+   - Dockerfile path: `Dockerfile` (in the root directory)
    - Port: `3000`
 
 ### 2. Configure Environment Variables
