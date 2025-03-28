@@ -31,6 +31,8 @@ import { checkWhiteLabelAccess } from "@/services/white-label"
 import { Toaster } from "@/components/ui/toaster"
 import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown"
 import { ProfileDropdown } from "@/components/profile/profile-dropdown"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { useTheme } from "@/contexts/theme-context"
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -43,6 +45,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [hasWhiteLabelAccess, setHasWhiteLabelAccess] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
+  const { theme } = useTheme()
   
   useEffect(() => {
     async function checkAccess() {
@@ -137,11 +140,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Sidebar header */}
+          {/* Sidebar header with theme-aware logo */}
           <div className="flex items-center justify-center h-16 px-4 border-b">
             <Link href="/dashboard" className="flex items-center">
               <img 
-                src="/Logos/LilySEO_logo_white.png" 
+                src={theme === "dark" ? "/Logos/LilySEO_logo_knockout.png" : "/Logos/LilySEO_logo_mark.png"} 
                 alt="LilySEO Logo" 
                 className="h-12 w-auto" 
               />
@@ -301,6 +304,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 border-b bg-card">
           <div className="flex-1 lg:flex-none"></div>
           <div className="flex items-center space-x-4">
+            <ThemeToggle />
             <NotificationsDropdown />
             <ProfileDropdown />
           </div>

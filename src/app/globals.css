@@ -139,7 +139,7 @@
 @layer base {
   :root {
     /* Base colors from the theme guide */
-    --primary: hsl(220 70% 50%); /* Blue primary */
+    --primary: hsl(220 70% 50%); /* Blue primary - kept consistent between themes */
     --primary-hover: hsl(220 70% 45%); /* Darker blue for hover states */
     --accent: hsl(0 100% 71%); /* #FF6B6B - Accent color */
     --dark: hsl(0 0% 20%); /* #333333 - Main text */
@@ -194,25 +194,61 @@
   }
 
   .dark {
-    --background: hsl(240 10% 3.9%);
-    --foreground: hsl(0 0% 98%);
-    --card: hsl(240 10% 3.9%);
-    --card-foreground: hsl(0 0% 98%);
-    --popover: hsl(240 10% 3.9%);
-    --popover-foreground: hsl(0 0% 98%);
+    /* Base semantic colors */
+    --background: hsl(240 10% 10%);
+    --foreground: hsl(0 0% 95%);
+    
+    /* Card and panel colors */
+    --card: hsl(240 10% 15%);
+    --card-foreground: hsl(0 0% 95%);
+    --popover: hsl(240 10% 15%);
+    --popover-foreground: hsl(0 0% 95%);
+    
+    /* Primary brand color - keeping consistent */
     --primary: hsl(220 70% 50%);
     --primary-foreground: hsl(0 0% 98%);
-    --secondary: hsl(240 3.7% 15.9%);
+    
+    /* Secondary and accent colors */
+    --secondary: hsl(240 3.7% 20%);
     --secondary-foreground: hsl(0 0% 98%);
-    --muted: hsl(240 3.7% 15.9%);
-    --muted-foreground: hsl(240 5% 64.9%);
-    --accent: hsl(240 3.7% 15.9%);
+    --accent: hsl(0 100% 71%);
     --accent-foreground: hsl(0 0% 98%);
-    --destructive: hsl(0 62.8% 30.6%);
+    
+    /* Muted and utility colors */
+    --muted: hsl(240 3.7% 20%);
+    --muted-foreground: hsl(240 5% 64.9%);
+    
+    /* Destructive colors */
+    --destructive: hsl(0 62.8% 45%);
     --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(240 3.7% 15.9%);
-    --input: hsl(240 3.7% 15.9%);
+    
+    /* Border and input */
+    --border: hsl(240 3.7% 25%);
+    --input: hsl(240 3.7% 25%);
     --ring: hsl(220 70% 50%);
+    
+    /* Utility Colors */
+    --success-background: hsl(142 76% 10%);
+    --success-text: hsl(142 76% 70%);
+    --warning-background: hsl(48 96% 10%);
+    --warning-text: hsl(48 96% 70%);
+    
+    /* Sidebar Colors */
+    --sidebar: hsl(240 10% 15%);
+    --sidebar-foreground: hsl(0 0% 95%);
+    --sidebar-primary: hsl(220 70% 50%);
+    --sidebar-primary-foreground: hsl(0 0% 98%);
+    --sidebar-accent: hsl(240 3.7% 25%);
+    --sidebar-accent-foreground: hsl(0 0% 98%);
+    --sidebar-border: hsl(240 3.7% 25%);
+    --sidebar-ring: hsl(220 70% 50%);
+    
+    /* Chart Colors - brighter for dark mode visibility */
+    --chart-1: hsl(220 70% 60%);
+    --chart-2: hsl(160 60% 55%);
+    --chart-3: hsl(30 80% 65%);
+    --chart-4: hsl(280 65% 70%);
+    --chart-5: hsl(340 75% 65%);
   }
 }
 
@@ -221,8 +257,18 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Add transition for theme switching */
+  html.dark {
+    color-scheme: dark;
+  }
+  
+  /* Global transition for theme change */
+  *, *::before, *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease;
   }
   
   /* Add animation for collapsible component */
@@ -248,7 +294,25 @@
     animation: collapsible-down 0.2s ease-out;
   }
 
-  .animate-collapsible-up {
-    animation: collapsible-up 0.2s ease-out;
+  /* Ensure table text is visible in dark mode */
+  .dark table {
+    @apply text-foreground border-border;
+  }
+  
+  .dark table th,
+  .dark table td {
+    @apply border-border;
+  }
+  
+  /* Ensure form inputs are visible in dark mode */
+  .dark input, 
+  .dark select, 
+  .dark textarea {
+    @apply bg-input text-foreground;
+  }
+  
+  /* Ensure buttons are visible with consistent brand colors */
+  .dark button.bg-primary {
+    @apply text-primary-foreground;
   }
 }

@@ -4,6 +4,7 @@ import { GeistMono } from 'geist/font/mono';
 import "./globals.css";
 import "./tailwind-import.css"; // Import the compiled Tailwind CSS
 import { QueryProvider } from "@/providers/query-provider";
+import { ThemeProvider } from "@/contexts/theme-context";
 
 // Add console logs to help debug
 console.log("Root layout rendering");
@@ -29,9 +30,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head />
       <body className={`${GeistSans.variable} ${GeistMono.variable} min-h-screen bg-background font-sans antialiased`}>
-        <QueryProvider>
-          {children}
-        </QueryProvider>
+        <ThemeProvider defaultTheme="light" storageKey="lily-theme">
+          <QueryProvider>
+            {children}
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
