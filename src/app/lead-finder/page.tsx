@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
-import { PageTitle, PageDescription } from "@/components/ui/page-headers"
 
 export default function LeadFinderPage() {
   const { toast } = useToast();
@@ -63,10 +62,10 @@ export default function LeadFinderPage() {
     <div className="container mx-auto p-4 max-w-7xl">
       <div className="flex flex-col gap-2 md:flex-row md:justify-between md:items-center mb-6">
         <div>
-          <PageTitle>Lead Finder</PageTitle>
-          <PageDescription>
+          <h1 className="text-3xl font-bold tracking-tight">Lead Finder</h1>
+          <p className="text-muted-foreground">
             Search for businesses to find potential leads
-          </PageDescription>
+          </p>
         </div>
         
         <div className="flex items-center gap-2">
