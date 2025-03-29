@@ -108,10 +108,8 @@ export async function GET(request: NextRequest) {
     const remainingSearches = await getRemainingSearches();
     console.log("Remaining searches according to our system:", remainingSearches);
     
-    // TEMPORARY FIX: Override the remaining searches check
-    // Comment out the original check
-    /*
-    if (remainingSearches <= 0) {
+    // Only check remaining searches if not in development mode
+    if (process.env.NODE_ENV !== 'development' && remainingSearches <= 0) {
       return NextResponse.json(
         { 
           error: "No searches remaining", 
@@ -120,7 +118,6 @@ export async function GET(request: NextRequest) {
         { status: 402 }
       );
     }
-    */
     
     // Always allow searches to proceed since we know we have Serper credits
     
@@ -430,7 +427,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Limit results to the requested number (maxResults)
-    const requestedMax = parseInt(maxResults, 10);
+    const requestedMax = searchParams.get("maxResults") ? parseInt(searchParams.get("maxResults") as string, 10) : 20;
     console.log(`Limiting results to ${requestedMax} as requested (from ${results.length} available)`);
     
     // Add safety check - ensure results is not too large to prevent "Invalid array length" errors
@@ -474,18 +471,56 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user) {
-      await supabase.from("lead_searches").insert({
-        user_id: user.id,
-        search_query: query,
-        location: location,
-        results_count: results.length,
-      });
+      try {
+        // Add the search record first
+        await supabase.from("lead_searches").insert({
+          user_id: user.id,
+          search_query: query,
+          location: location,
+          results_count: results.length,
+        });
+        
+        // Then decrement remaining searches from user's search packages if they have any
+        const { data: searchPackages } = await supabase
+          .from("user_search_packages")
+          .select("id, remaining_searches")
+          .eq("user_id", user.id)
+          .gt("remaining_searches", 0)
+          .order("purchase_date", { ascending: true })
+          .limit(1);
+          
+        if (searchPackages && searchPackages.length > 0) {
+          const packageToUpdate = searchPackages[0];
+          const currentRemaining = parseInt(packageToUpdate.remaining_searches as unknown as string);
+          const newRemaining = Math.max(0, currentRemaining - 1);
+          
+          // Update the package with one less search
+          await supabase
+            .from("user_search_packages")
+            .update({ 
+              remaining_searches: newRemaining,
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", packageToUpdate.id);
+            
+          console.log(`Decremented search count for package ${packageToUpdate.id} from ${currentRemaining} to ${newRemaining}`);
+        } else {
+          console.log(`No search packages with remaining credits found for user ${user.id}`);
+        }
+
+      } catch (dbError) {
+        // Just log the error, don't fail the entire search
+        console.error("Error updating search credits:", dbError);
+      }
     }
+
+    // Get the updated remaining searches
+    const updatedRemainingSearches = await getRemainingSearches();
 
     // Return results
     return NextResponse.json({
       results,
-      remaining_searches: remainingSearches - 1, // Decrement by one for this search
+      remaining_searches: updatedRemainingSearches, // Use the freshly calculated value
       location_warning: locationWarning
     });
   } catch (error: any) {

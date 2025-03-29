@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
 interface UserData {
   id: string;
@@ -21,6 +22,9 @@ interface UsageLimitData {
 
 export async function GET() {
   try {
+    // Force cache revalidation for this endpoint
+    revalidatePath('/api/lead-finder/remaining-searches');
+    
     const supabase = await createClient();
     
     // Get the user from the server session
@@ -43,7 +47,9 @@ export async function GET() {
       const { data: searchPackages, error: packageError } = await supabase
         .from("user_search_packages")
         .select("remaining_searches")
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .gt("remaining_searches", 0) // Only get packages with remaining searches
+        .order('updated_at', { ascending: true });
 
       if (packageError) {
         console.error("Error fetching user_search_packages:", packageError);
@@ -51,7 +57,9 @@ export async function GET() {
       } else {
         // Sum up remaining searches from all packages
         calculatedSearches = (searchPackages as SearchPackage[] || []).reduce((total, pkg) => 
-          total + (pkg.remaining_searches || 0), 0);
+          total + (typeof pkg.remaining_searches === 'string' 
+            ? parseInt(pkg.remaining_searches, 10) 
+            : (pkg.remaining_searches as number)), 0);
       }
     } catch (queryError) {
       console.error("Failed to execute search packages query:", queryError);
@@ -90,12 +98,16 @@ export async function GET() {
         
       const monthlyLimit = limitData ? (limitData as UsageLimitData).monthly_limit : (isEnterprise ? 250 : 0);
       
-      // Count searches used this month
+      // Count searches used this month - use a timestamp with the start of the current month
+      const firstDayOfMonth = new Date();
+      firstDayOfMonth.setDate(1);
+      firstDayOfMonth.setHours(0, 0, 0, 0);
+      
       const { count: usedSearches } = await supabase
         .from("lead_searches")
         .select("id", { count: 'exact', head: false })
         .eq("user_id", user.id)
-        .gte("created_at", new Date(new Date().setDate(1)).toISOString());
+        .gte("created_at", firstDayOfMonth.toISOString());
         
       const remainingMonthly = Math.max(0, monthlyLimit - (usedSearches || 0));
       const totalRemaining = remainingMonthly + calculatedSearches;
@@ -103,8 +115,11 @@ export async function GET() {
       return NextResponse.json({ 
         remaining_searches: totalRemaining,
         calculated_searches: calculatedSearches,
+        monthly_remaining: remainingMonthly,
+        monthly_used: usedSearches || 0,
+        monthly_limit: monthlyLimit,
         subscription_tier: profileTier || 'free'
-      });
+      }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
     
     // For enterprise users, show a higher number
@@ -121,12 +136,16 @@ export async function GET() {
       
     const monthlyLimit = limitData ? (limitData as UsageLimitData).monthly_limit : (isEnterprise ? 250 : 0);
     
-    // Count searches used this month
+    // Count searches used this month - use a timestamp with the start of the current month
+    const firstDayOfMonth = new Date();
+    firstDayOfMonth.setDate(1);
+    firstDayOfMonth.setHours(0, 0, 0, 0);
+    
     const { count: usedSearches } = await supabase
       .from("lead_searches")
       .select("id", { count: 'exact', head: false })
       .eq("user_id", user.id)
-      .gte("created_at", new Date(new Date().setDate(1)).toISOString());
+      .gte("created_at", firstDayOfMonth.toISOString());
       
     const remainingMonthly = Math.max(0, monthlyLimit - (usedSearches || 0));
     const totalRemaining = remainingMonthly + calculatedSearches;
@@ -134,8 +153,11 @@ export async function GET() {
     return NextResponse.json({ 
       remaining_searches: totalRemaining,
       calculated_searches: calculatedSearches,
+      monthly_remaining: remainingMonthly,
+      monthly_used: usedSearches || 0,
+      monthly_limit: monthlyLimit,
       subscription_tier: userSubscription || 'free'
-    });
+    }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
 
   } catch (error: any) {
     console.error("Error in remaining-searches API:", error);
@@ -144,6 +166,6 @@ export async function GET() {
       remaining_searches: 50,
       error_details: error.message,
       note: "Using fallback value due to error"
-    });
+    }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   }
 } 
