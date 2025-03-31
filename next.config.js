@@ -9,10 +9,7 @@ const nextConfig = {
     // Add alias for problematic packages
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@dnd-kit/core': path.resolve(__dirname, './src/stubs/dnd.js'),
-      '@dnd-kit/sortable': path.resolve(__dirname, './src/stubs/dnd.js'),
-      '@dnd-kit/utilities': path.resolve(__dirname, './src/stubs/dnd.js'),
-      '@dnd-kit/modifiers': path.resolve(__dirname, './src/stubs/dnd.js'),
+      '@hello-pangea/dnd': path.resolve(__dirname, './src/stubs/dnd.js'),
       '@paypal/react-paypal-js': path.resolve(__dirname, './src/stubs/paypal.js'),
       '@tanstack/react-query': path.resolve(__dirname, './src/stubs/react-query.js'),
       '@supabase/ssr': path.resolve(__dirname, './src/stubs/supabase-ssr.js'),

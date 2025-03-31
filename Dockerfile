@@ -11,8 +11,9 @@ COPY package.json package-lock.json ./
 # Removing specific problematic packages we intend to alias/stub
 RUN npm install --production=false --legacy-peer-deps
 
-# Install other potentially missing dependencies (excluding those we will stub via webpack)
-RUN npm install @upstash/redis @paypal/react-paypal-js @hello-pangea/dnd @tanstack/react-query axios geist
+# Install other potentially missing dependencies
+# Include @supabase/ssr here, but exclude @hello-pangea/dnd (handled by alias)
+RUN npm install @upstash/redis @paypal/react-paypal-js @tanstack/react-query axios geist @supabase/ssr jspdf
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -33,10 +34,7 @@ ENV UPSTASH_REDIS_REST_TOKEN=AbPLAAIjcDEzNzY4YTc1ZWY0MDM0MGJlOWVjOTcxOTI4NDFhYTM
 RUN npm install --legacy-peer-deps
 
 # Create stub files ONLY for packages NOT handled by webpack aliases if needed
-# We are relying on webpack aliases for: @dnd-kit/*, @paypal/react-paypal-js, @tanstack/react-query, @supabase/ssr, jspdf, axios, @upstash/redis, geist/font/*
-# Therefore, this section might become unnecessary if webpack aliases cover everything.
-# Keeping it minimal for now.
-# Example (if needed): RUN mkdir -p /app/node_modules/some-other-package && echo "export default {};" > /app/node_modules/some-other-package/index.js
+# This section should now be empty as all known issues are handled by aliases
 
 # Force all pages to be server-side rendered by PREPENDING the directive
 # Using sed to insert the line at the beginning of each page file
