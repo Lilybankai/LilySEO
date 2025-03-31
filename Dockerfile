@@ -41,6 +41,9 @@ ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 ENV SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZsZWFubGpyeHpicGF5ZnN2aWVjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MTczMjE0NSwiZXhwIjoyMDU3MzA4MTQ1fQ.NxG8KGHDd3swZVFPFm_TkaXa8PyGP84Zm7KNlVKRtPE
 ENV UPSTASH_REDIS_REST_URL=https://fitting-adder-46027.upstash.io
 ENV UPSTASH_REDIS_REST_TOKEN=AbPLAAIjcDEzNzY4YTc1ZWY0MDM0MGJlOWVjOTcxOTI4NDFhYTMwNnAxMA
+ENV NEXT_EXPORT=false
+ENV OUTPUT_STANDALONE=true
+ENV CRON_SECRET=cron_secret_for_daily_job
 
 # Make sure ALL dependencies are properly installed before stubbing
 RUN npm install --legacy-peer-deps postcss-import postcss-nested postcss-nesting tailwindcss autoprefixer
@@ -54,12 +57,17 @@ RUN test -f postcss.config.mjs || mv postcss.config.mjs.new postcss.config.mjs
 # This section should now be empty as all known issues are handled by aliases
 
 # Force all pages to be server-side rendered 
-# Add dynamic directive in the right position depending on whether "use client" exists
-RUN find /app/src/app -type f \( -name "page.tsx" -o -name "page.js" \) -exec bash -c 'if grep -q "use client" "$1"; then sed -i "/use client/a export const dynamic = \"force-dynamic\";" "$1"; else sed -i "1i export const dynamic = \"force-dynamic\";" "$1"; fi' _ {} \;
+# Create a simple middleware to force all pages to server-side render
+RUN mkdir -p /app/src/middleware
+RUN echo 'export { default } from "next/dist/esm/server/web/spec-extension/fetch-event";' > /app/src/middleware.js
+RUN echo 'export const config = { matcher: "/((?!_next/static|_next/image|favicon.ico).*)" };' >> /app/src/middleware.js
+
+# Add a dynamic export to fix client component issues
+RUN find /app/src/app/dashboard -type d -name "changelog" -o -name "subscription" | xargs -I{} sh -c 'echo "export const dynamic = \"force-dynamic\";" > {}/config.js'
 
 # Build the application
 RUN npm run build:css
-RUN NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY npm run build
+RUN NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY NODE_OPTIONS="--max_old_space_size=4096" npm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
