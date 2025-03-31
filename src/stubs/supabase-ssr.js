@@ -1,70 +1,55 @@
-// Stub implementation for @supabase/ssr
-export function createBrowserClient(supabaseUrl, supabaseKey, options = {}) {
+// This is a stub for the @supabase/ssr module for build purposes
+// Implements mock versions of createServerClient and createBrowserClient functions
+
+// Mock for createServerClient
+export function createServerClient(supabaseUrl, supabaseKey, options = {}) {
+  console.log('Using stub @supabase/ssr.createServerClient');
+  
   return {
-    auth: {
-      getSession: async () => ({
-        data: { session: { user: { id: 'mock-user-id', email: 'user@example.com' } } },
-        error: null
-      }),
-      getUser: async () => ({
-        data: { user: { id: 'mock-user-id', email: 'user@example.com' } },
-        error: null
-      }),
-      signOut: async () => ({ error: null }),
-      signInWithOAuth: async () => ({ error: null }),
-    },
     from: (table) => ({
-      select: () => ({
-        eq: () => ({
-          single: async () => ({ data: {}, error: null }),
-          maybeSingle: async () => ({ data: {}, error: null }),
-          order: () => ({
+      select: (columns) => ({
+        eq: (column, value) => ({
+          eq: (column2, value2) => ({
+            single: () => Promise.resolve(null),
+            maybeSingle: () => Promise.resolve(null),
             limit: () => ({
-              data: [],
-              error: null
-            })
+              order: () => Promise.resolve([])
+            }),
+            order: () => Promise.resolve([])
           }),
-          data: [],
-          error: null
+          single: () => Promise.resolve(null),
+          limit: () => ({
+            order: () => Promise.resolve([])
+          }),
+          order: () => Promise.resolve([])
         })
-      }),
-      insert: () => ({ error: null, data: [] }),
-      update: () => ({ eq: () => ({ error: null, data: [] }) }),
-      delete: () => ({ eq: () => ({ error: null }) }),
-    })
+      })
+    }),
+    auth: {
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      signInWithOAuth: () => Promise.resolve({ data: null, error: null }),
+      signOut: () => Promise.resolve({ error: null }),
+    },
+    storage: {
+      from: () => ({
+        upload: () => Promise.resolve({ data: null, error: null }),
+        list: () => Promise.resolve({ data: [], error: null }),
+      })
+    },
+    rpc: () => Promise.resolve([])
   };
 }
 
-export function createServerClient(supabaseUrl, supabaseKey, options = {}) {
-  return {
-    auth: {
-      getSession: async () => ({
-        data: { session: { user: { id: 'mock-user-id', email: 'user@example.com' } } },
-        error: null
-      }),
-      getUser: async () => ({
-        data: { user: { id: 'mock-user-id', email: 'user@example.com' } },
-        error: null
-      }),
-    },
-    from: (table) => ({
-      select: () => ({
-        eq: () => ({
-          single: async () => ({ data: {}, error: null }),
-          maybeSingle: async () => ({ data: {}, error: null }),
-          order: () => ({
-            limit: () => ({
-              data: [],
-              error: null
-            })
-          }),
-          data: [],
-          error: null
-        })
-      }),
-      insert: () => ({ error: null, data: [] }),
-      update: () => ({ eq: () => ({ error: null, data: [] }) }),
-      delete: () => ({ eq: () => ({ error: null }) }),
-    })
-  };
-} 
+// Mock for createBrowserClient
+export function createBrowserClient(supabaseUrl, supabaseKey, options = {}) {
+  console.log('Using stub @supabase/ssr.createBrowserClient');
+  
+  return createServerClient(supabaseUrl, supabaseKey, options);
+}
+
+// Default export
+export default {
+  createServerClient,
+  createBrowserClient
+}; 
