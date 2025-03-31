@@ -7,13 +7,7 @@ const nextConfig = {
   output: 'standalone',
   // Force dynamic mode for all pages and API routes
   experimental: {
-    // Skip type checking on build
-    skipTypechecking: true,
-    // Skip static generation for problematic paths
-    skipTrailingSlashRedirect: true,
-    // Skip middleware and route detection during build
-    isrMemoryCacheSize: 0,
-    serverComponentsExternalPackages: ['next', '@tanstack/react-query', 'jspdf', '@paypal/react-paypal-js', '@hello-pangea/dnd', 'geist'],
+    serverComponentsExternalPackages: ['next', '@tanstack/react-query', 'jspdf', '@paypal/react-paypal-js', '@hello-pangea/dnd', 'geist']
   },
   // Instead of failing on error, ignore errors during build
   onDemandEntries: {
@@ -21,6 +15,7 @@ const nextConfig = {
     maxInactiveAge: 60 * 60 * 1000,
     pagesBufferLength: 5,
   },
+  skipTrailingSlashRedirect: true,
   eslint: { 
     ignoreDuringBuilds: true
   },
@@ -42,23 +37,35 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@hello-pangea/dnd': isServer 
-        ? require.resolve('./src/stubs/dnd.js') 
+        ? path.resolve(__dirname, './src/stubs/dnd.js') 
         : '@hello-pangea/dnd',
       '@paypal/react-paypal-js': isServer 
-        ? require.resolve('./src/stubs/paypal.js') 
+        ? path.resolve(__dirname, './src/stubs/paypal.js') 
         : '@paypal/react-paypal-js',
       '@tanstack/react-query': isServer 
-        ? require.resolve('./src/stubs/react-query.js') 
+        ? path.resolve(__dirname, './src/stubs/react-query.js') 
         : '@tanstack/react-query',
+      'geist/font/sans': isServer 
+        ? path.resolve(__dirname, './src/stubs/geist-font.js') 
+        : 'geist/font/sans',
+      'geist/font/mono': isServer 
+        ? path.resolve(__dirname, './src/stubs/geist-font.js') 
+        : 'geist/font/mono',
       'geist': isServer 
-        ? require.resolve('./src/stubs/geist-font.js') 
+        ? path.resolve(__dirname, './src/stubs/geist-font.js') 
         : 'geist',
       'jspdf': isServer 
-        ? require.resolve('./src/stubs/jspdf.js') 
+        ? path.resolve(__dirname, './src/stubs/jspdf.js') 
         : 'jspdf',
       '@supabase/ssr': isServer 
-        ? require.resolve('./src/stubs/supabase-ssr.js') 
+        ? path.resolve(__dirname, './src/stubs/supabase-ssr.js') 
         : '@supabase/ssr',
+      'axios': isServer 
+        ? path.resolve(__dirname, './src/stubs/axios.js') 
+        : 'axios',
+      '@upstash/redis': isServer 
+        ? path.resolve(__dirname, './src/stubs/upstash-redis.js') 
+        : '@upstash/redis',
     };
 
     return config;
