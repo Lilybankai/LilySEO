@@ -9,9 +9,15 @@ const nextConfig = {
     // Add alias for problematic packages
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@tanstack/react-query': path.resolve(__dirname, './src/stubs/react-query.js'),
-      '@hello-pangea/dnd': path.resolve(__dirname, './src/stubs/dnd.js'),
+      '@dnd-kit/core': path.resolve(__dirname, './src/stubs/dnd.js'),
+      '@dnd-kit/sortable': path.resolve(__dirname, './src/stubs/dnd.js'),
+      '@dnd-kit/utilities': path.resolve(__dirname, './src/stubs/dnd.js'),
+      '@dnd-kit/modifiers': path.resolve(__dirname, './src/stubs/dnd.js'),
       '@paypal/react-paypal-js': path.resolve(__dirname, './src/stubs/paypal.js'),
+      '@tanstack/react-query': path.resolve(__dirname, './src/stubs/react-query.js'),
+      '@supabase/ssr': path.resolve(__dirname, './src/stubs/supabase-ssr.js'),
+      'jspdf': path.resolve(__dirname, './src/stubs/jspdf.js'),
+      'axios': path.resolve(__dirname, './src/stubs/axios.js'),
     };
     
     return config;
@@ -28,6 +34,9 @@ const nextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
+  images: {
+    domains: ['images.unsplash.com', 'progitek.no', 'lh3.googleusercontent.com']
+  }
 };
 
 module.exports = nextConfig; 
