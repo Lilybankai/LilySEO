@@ -4,45 +4,71 @@ import React, { useState, useEffect, useCallback } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import LeadSearch from "@/components/lead-finder/lead-search"
-import LeadsList from "@/components/lead-finder/leads-list"
-import UsageStats from "@/components/lead-finder/usage-stats"
 import { MapPin, Search, Zap, Info, ArrowUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from 'lucide-react'
+
+interface SearchResult {
+  title: string;
+  place_id: string;
+  address: string;
+  phone: string;
+  website: string;
+  rating: string;
+  reviews: string;
+  type: string[] | string;
+  price_level?: string;
+  hours?: string;
+  latitude?: number;
+  longitude?: number;
+  data_quality?: number;
+  thumbnail?: string;
+  detailed_hours?: string;
+  full_address?: string;
+  services?: string[];
+  description?: string;
+  photos?: string[];
+}
+
+interface RemainingSearchesData {
+  remaining_searches: number;
+  calculated_searches?: number;
+  monthly_remaining?: number;
+  subscription_tier?: string;
+}
 
 export default function LeadFinderPage() {
   const { toast } = useToast();
-  const [remainingSearches, setRemainingSearches] = useState<number>(0);
+  const [remainingSearchesData, setRemainingSearchesData] =
+    useState<RemainingSearchesData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentResults, setCurrentResults] = useState<SearchResult[]>([]);
 
   const fetchRemainingSearches = useCallback(async () => {
+    let isFetching = true;
+    let fetchError = null;
+    let fetchedData = null;
+    
+    setIsLoading(true);
     try {
-      const timestamp = new Date().getTime();
-      const response = await fetch(`/api/lead-finder/remaining-searches?_=${timestamp}`, { 
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error("Authentication required. Please sign in.");
-        }
-        throw new Error(`Failed to fetch remaining searches: ${response.status}`);
+      const fetchResponse = await fetch("/api/lead-finder/remaining-searches");
+      if (!fetchResponse.ok) {
+        throw new Error("Failed to fetch remaining searches");
       }
-      
-      const data = await response.json();
-      console.log("Fetched remaining searches:", data);
-      setRemainingSearches(data.remaining_searches || 0);
-    } catch (error: any) {
-      console.error("Error fetching remaining searches:", error);
-      setError(error.message);
+      fetchedData = await fetchResponse.json();
+      setRemainingSearchesData(fetchedData);
+    } catch (err: any) {
+      fetchError = err.message;
+      setError(fetchError);
       toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
+        title: "Error Fetching Searches",
+        description: fetchError,
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -53,10 +79,22 @@ export default function LeadFinderPage() {
     fetchRemainingSearches();
   }, [fetchRemainingSearches]);
 
-  const handleSearchCompleted = useCallback(() => {
-    console.log("Search completed, refreshing remaining search count");
-    fetchRemainingSearches();
-  }, [fetchRemainingSearches]);
+  const handleSearchComplete = (
+    success: boolean,
+    results: SearchResult[],
+    accurateRemainingCount: number | null
+  ) => {
+    setCurrentResults(results);
+
+    if (accurateRemainingCount !== null) {
+      setRemainingSearchesData((prevData) => ({
+        ...(prevData ?? {}),
+        remaining_searches: accurateRemainingCount,
+      }));
+    } else {
+      fetchRemainingSearches();
+    }
+  };
 
   return (
     <div className="container mx-auto p-4 max-w-7xl">
@@ -71,7 +109,7 @@ export default function LeadFinderPage() {
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="px-3 py-1 text-sm bg-muted/50">
             <MapPin className="w-3 h-3 mr-1" />
-            <span>Remaining searches: {isLoading ? "Loading..." : remainingSearches}</span>
+            <span>Remaining searches: {isLoading ? "Loading..." : remainingSearchesData?.remaining_searches ?? "N/A"}</span>
           </Badge>
           
           <Button variant="outline" size="sm" asChild>
@@ -117,7 +155,10 @@ export default function LeadFinderPage() {
         </TabsList>
         
         <TabsContent value="search" className="space-y-4">
-          <LeadSearch onSearch={handleSearchCompleted} remainingSearches={remainingSearches} />
+          <LeadSearch 
+            onSearchComplete={handleSearchComplete}
+            remainingSearches={remainingSearchesData?.remaining_searches ?? 0}
+          />
         </TabsContent>
       </Tabs>
       
@@ -128,6 +169,18 @@ export default function LeadFinderPage() {
       >
         <ArrowUp className="w-4 h-4 mr-2" /> Back to top
       </Button>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {currentResults.length > 0 && (
+        <p className="mt-4 text-center text-muted-foreground">Displaying {currentResults.length} results (Table component TBD)</p>
+      )}
     </div>
   )
 } 

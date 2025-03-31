@@ -32,6 +32,7 @@ import { SearchConsoleButton } from "@/components/google/search-console-button"
 import { RecommendationsDisplay } from "@/components/ai/recommendations-display"
 import { AiRecommendation } from "@/services/ai-recommendations"
 import { useSubscription } from "@/hooks/use-subscription"
+import { getUserSubscriptionPlan, SUBSCRIPTION_LIMITS } from "@/lib/subscription"
 
 // URL validation with more comprehensive checks
 const urlSchema = z.string()
@@ -188,18 +189,41 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
     try {
       const supabase = createClient();
       
-      // First check if the user exists in the profiles table
+      // --- BEGIN PROJECT LIMIT CHECK ---
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("id, subscription_tier")
+        .select("subscription_tier")
         .eq("id", userId)
         .single();
-      
+
       if (profileError) {
-        throw new Error("User profile not found. Please complete your profile setup first.");
+        console.error("[NewProjectForm] Error fetching profile for limit check:", profileError);
+        throw new Error("Could not verify your subscription plan. Unable to create project.");
       }
-      
-      // Check for duplicate project URLs
+
+      const tier = (profile?.subscription_tier?.toUpperCase() || 'FREE') as keyof typeof SUBSCRIPTION_LIMITS;
+      const projectLimit = SUBSCRIPTION_LIMITS[tier]?.projects ?? SUBSCRIPTION_LIMITS.FREE.projects;
+
+      if (projectLimit !== -1) {
+        const { count: currentProjectCount, error: countError } = await supabase
+          .from("projects")
+          .select("id", { count: 'exact', head: true })
+          .eq("user_id", userId)
+          .eq("status", "active");
+
+        if (countError) {
+          console.error("[NewProjectForm] Error counting existing projects:", countError);
+          throw new Error("Could not verify your current project count. Unable to create project.");
+        }
+        
+        if (currentProjectCount !== null && currentProjectCount >= projectLimit) {
+          console.warn(`[NewProjectForm] User ${userId} reached project limit (${currentProjectCount}/${projectLimit}) for tier ${tier}.`);
+          throw new Error(`You have reached the project limit (${projectLimit}) for the ${tier} plan. Please upgrade your plan or delete an existing project to add more.`);
+        }
+      }
+      // --- END PROJECT LIMIT CHECK ---
+
+      // First check if the user exists in the profiles table
       const { data: existingProjects, error: projectsError } = await supabase
         .from("projects")
         .select("id, url")
@@ -255,6 +279,8 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
           url: values.url,
           description: values.description,
           industry: values.industry,
+          // Set the subscription tier on creation based on profile
+          subscription_tier: profile?.subscription_tier || 'free',
           settings: {
             keywordGroups: keywordGroups.length > 0 ? keywordGroups : null,
             advancedOptions: values.advancedOptions ? {
@@ -272,6 +298,7 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
         .single();
       
       if (projectError) {
+        console.error("[NewProjectForm] Error inserting project:", projectError);
         throw projectError;
       }
       
@@ -283,6 +310,7 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
         router.refresh();
       }, 2000);
     } catch (error: any) {
+      console.error("[NewProjectForm] onSubmit error:", error);
       setError(error.message || "An error occurred while creating the project.");
     } finally {
       setIsLoading(false);

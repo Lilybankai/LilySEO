@@ -71,32 +71,54 @@ async function getPlaceDetails(placeId: string, apiKey: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check if user has enterprise access
-    const hasAccess = await checkEnterpriseAccess();
-    if (!hasAccess) {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError) {
+        console.error("[search] Error getting user:", userError);
+        return NextResponse.json({ error: "Authentication error fetching user" }, { status: 500 });
+    }
+    
+    if (!user) {
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
+    }
+
+    const initialRemainingData = await getRemainingSearchesDetails(user.id);
+    
+    // Check enterprise access (using profiles table primarily)
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", user.id)
+      .single();
+    
+    const isEnterprise = profileData?.subscription_tier === 'enterprise';
+
+    // BEGIN ACCESS CHECK (using profile data)
+    if (!isEnterprise) {
+       console.warn(`[search] User ${user.id} does not have enterprise access (tier: ${profileData?.subscription_tier}). Denying search.`);
       return NextResponse.json(
-        { error: "Enterprise access required" },
+         { error: "Enterprise access required for Lead Finder" },
         { status: 403 }
       );
     }
+    // END ACCESS CHECK
 
-    // Get search parameters from request
+    // Get search parameters ...
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get("query");
     const location = searchParams.get("location");
     const minRating = searchParams.get("minRating");
     const maxRating = searchParams.get("maxRating");
-    const radius = searchParams.get("radius") || "10"; // Default to 10km
+    const radius = searchParams.get("radius") || "10";
     const maxResults = parseInt(searchParams.get("maxResults") || "20", 10);
     const priceLevel = searchParams.get("priceLevel");
     const openNow = searchParams.get("openNow") === "true";
-    
-    // Get explicit location parameters
     const placeId = searchParams.get("placeId");
     const lat = searchParams.get("lat");
     const lng = searchParams.get("lng");
 
-    // Validate parameters
+    // Validate parameters ...
     if (!query || !location) {
       return NextResponse.json(
         { error: "Missing required parameters: query and location" },
@@ -104,40 +126,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if user has remaining searches
-    const remainingSearches = await getRemainingSearches();
-    console.log("Remaining searches according to our system:", remainingSearches);
-    
-    // Only check remaining searches if not in development mode
-    if (process.env.NODE_ENV !== 'development' && remainingSearches <= 0) {
+    // Credit check already done above with initialRemainingData
+    const initialTotalRemaining = initialRemainingData.totalRemaining;
+    if (process.env.NODE_ENV !== 'development' && initialTotalRemaining <= 0) {
       return NextResponse.json(
         { 
           error: "No searches remaining", 
-          message: "You have reached your monthly search limit. Please purchase more searches."
+          message: "You have reached your monthly search limit or have no packages left."
         },
         { status: 402 }
       );
     }
     
-    // Always allow searches to proceed since we know we have Serper credits
-    
-    // Load Serper API key from environment variables
+    // Serper API Key Logic
     let apiKey = process.env.SERPER_API_KEY;
-    
-    // For development, use the provided key if env variable isn't set
     if (!apiKey) {
-      apiKey = "9289df896676abed6287d6344ea67af7c792cac2";
+      apiKey = "9289df896676abed6287d6344ea67af7c792cac2"; // Use fallback if needed
       console.log("Using hardcoded fallback Serper API key");
     }
-    
-    // Log the API key debug info (first few chars only for security)
     console.log("Using Serper API key:", apiKey ? `${apiKey.substring(0, 5)}... (${apiKey.length} chars)` : "Key missing");
 
-    // Extract country code from location if possible
+    // Serper API Call Setup
     const locationLower = location.toLowerCase();
-    let countryCode = "us"; // Default to US
-    
-    // Check for common country indicators in the location string
+    let countryCode = "us"; 
     if (locationLower.includes("uk") || locationLower.includes("united kingdom") || 
         locationLower.includes("england") || locationLower.includes("scotland") || 
         locationLower.includes("wales") || locationLower.includes("northern ireland")) {
@@ -145,60 +156,34 @@ export async function GET(request: NextRequest) {
     } else if (locationLower.includes("usa") || locationLower.includes("united states") || 
                locationLower.includes("america") || locationLower.endsWith("us")) {
       countryCode = "us";
-    } else if (locationLower.includes("canada")) {
-      countryCode = "ca";
-    } else if (locationLower.includes("australia")) {
-      countryCode = "au";
-    } else if (locationLower.includes("france")) {
-      countryCode = "fr";
-    } else if (locationLower.includes("germany")) {
-      countryCode = "de";
-    } else if (locationLower.includes("japan")) {
-      countryCode = "jp";
-    } else if (locationLower.includes("italy")) {
-      countryCode = "it";
     } else if (locationLower.includes("spain")) {
       countryCode = "es";
     }
     
-    // Clean location for search query
     const cleanLocation = location.replace(/@-?\d+\.\d+,-?\d+\.\d+/g, '').trim();
-    
-    // Build search query combining business type and location
     let searchQuery = query;
     if (cleanLocation) {
       searchQuery += ` in ${cleanLocation}`;
     }
 
-    // Create base request payload for Serper API
     const baseRequestPayload: any = {
       q: searchQuery,
       gl: countryCode,
-      num: 10, // Serper's places search type max is 10 per request
-      type: "places"  // Specify we want local places results
+      num: 10, 
+      type: "places"
     };
-    
-    // Add optional parameters if available
-    if (lat && lng) {
-      baseRequestPayload.ll = `${lat},${lng}`;
-    }
-    
-    // Convert radius from km to meters
+    if (lat && lng) { baseRequestPayload.ll = `${lat},${lng}`; }
     if (radius) {
       const radiusMeters = parseInt(radius, 10) * 1000;
-      baseRequestPayload.radius = Math.min(radiusMeters, 50000); // Cap at 50km
+       baseRequestPayload.radius = Math.min(radiusMeters, 50000);
     }
     
-    // Calculate how many API calls we need to make
     const batchCount = Math.ceil(maxResults / 10);
-    const apiCalls = Math.min(batchCount, 5); // Limit to 5 API calls (50 results max)
-    
+    const apiCalls = Math.min(batchCount, 5);
     console.log(`Making ${apiCalls} Serper API requests to fetch up to ${apiCalls * 10} results`);
-    
-    // Make multiple requests to get more results
+
     const allResults: any[] = [];
     let locationWarning: string | null = null;
-    
     for (let i = 0; i < apiCalls; i++) {
       // Only add pagination parameters after first request
       const requestPayload = { ...baseRequestPayload };
@@ -207,7 +192,7 @@ export async function GET(request: NextRequest) {
         requestPayload.start = (i * 10).toString();
       }
       
-      console.log(`Request ${i+1}/${apiCalls} with payload:`, JSON.stringify({
+      console.log(`[search - LOOP] Request ${i+1}/${apiCalls} with payload:`, JSON.stringify({
         ...requestPayload,
         apiKey: "[REDACTED]"
       }, null, 2));
@@ -222,10 +207,10 @@ export async function GET(request: NextRequest) {
           timeout: 30000 // 30 second timeout
         });
         
-        console.log(`Request ${i+1} status:`, response.status);
+        console.log(`[search - LOOP] Request ${i+1} status:`, response.status);
         
         if (!response.data) {
-          console.error(`Request ${i+1} returned empty response data`);
+          console.error(`[search - LOOP] Request ${i+1} returned empty response data`);
           continue;
         }
         
@@ -234,33 +219,34 @@ export async function GET(request: NextRequest) {
         
         // Check places field
         if (response.data.places && Array.isArray(response.data.places)) {
-          console.log(`Found ${response.data.places.length} places in places field for request ${i+1}`);
+          console.log(`[search - LOOP] Found ${response.data.places.length} places in places field for request ${i+1}`);
           batchResults = response.data.places;
         }
         // Check local field
         else if (response.data.local && response.data.local.results) {
-          console.log(`Found ${response.data.local.results.length} places in local.results field for request ${i+1}`);
+          console.log(`[search - LOOP] Found ${response.data.local.results.length} places in local.results field for request ${i+1}`);
           batchResults = response.data.local.results;
         }
         // Check localResults field
         else if (response.data.localResults) {
-          console.log(`Found ${response.data.localResults.length} places in localResults field for request ${i+1}`);
+          console.log(`[search - LOOP] Found ${response.data.localResults.length} places in localResults field for request ${i+1}`);
           batchResults = response.data.localResults;
         }
         
         if (batchResults.length === 0) {
-          console.warn(`No places found in response data for request ${i+1}`);
+          console.warn(`[search - LOOP] No places found in response data for request ${i+1}`);
           // If first request returns no results, we can stop
           if (i === 0) break;
           // If a subsequent request returns no results, we've reached the end
           break;
         }
         
-        // Check if we need to capture location warning
+        // Check if we need to capture location warning (Only relevant for first request)
         if (i === 0 && response.data.searchMetadata && response.data.searchMetadata.locationInfo) {
           const locationInfo = response.data.searchMetadata.locationInfo;
-          if (locationInfo.detectedLocation && locationInfo.detectedLocation !== cleanLocation) {
-            locationWarning = `Results may not be from ${locationInfo.detectedLocation.toUpperCase()}. Try adding the country name to your search.`;
+          if (locationInfo.detectedLocation && !locationInfo.using_map_coordinates && locationInfo.detectedLocation !== cleanLocation) {
+            locationWarning = `Results may be from ${locationInfo.detectedLocation.toUpperCase()} instead of the specified location. Try adding the country name to your search.`;
+             console.warn("[search - LOOP] Location mismatch warning triggered.");
           }
         }
         
@@ -268,7 +254,10 @@ export async function GET(request: NextRequest) {
         allResults.push(...batchResults);
         
         // If we have enough results, we can stop making more requests
-        if (allResults.length >= maxResults) break;
+        if (allResults.length >= maxResults) {
+           console.log(`[search - LOOP] Reached maxResults (${maxResults}), stopping API calls.`);
+           break;
+        }
         
         // Add a small delay between requests to avoid rate limiting
         if (i < apiCalls - 1) {
@@ -276,12 +265,12 @@ export async function GET(request: NextRequest) {
         }
         
       } catch (apiError: any) {
-        console.error(`Error in request ${i+1}:`, apiError.message);
+        console.error(`[search - LOOP] Error in request ${i+1}:`, apiError.message);
         // If first request fails, propagate the error
         if (i === 0) {
           return NextResponse.json(
             { 
-              error: "Search API error", 
+              error: "Search API error during first request", 
               message: apiError.message,
               details: apiError.response ? apiError.response.data : null
             },
@@ -289,30 +278,32 @@ export async function GET(request: NextRequest) {
           );
         }
         // If subsequent requests fail, we'll just use what we have so far
+        console.warn(`[search - LOOP] Subsequent API request failed. Continuing with ${allResults.length} results collected so far.`);
         break;
       }
     }
     
+    // Check results AFTER the loop
     if (allResults.length === 0) {
-      console.warn("No results found across all API calls");
-      return NextResponse.json(
-        { error: "No results found for your search", message: "Try adjusting your search criteria" },
-        { status: 404 }
-      );
-    }
+       console.warn("[search] No results found across all API calls");
+       // Return 200 OK but with empty results and the warning
+       return NextResponse.json({ 
+         results: [], 
+         remaining_searches: initialTotalRemaining, // No decrement if no results
+         location_warning: locationWarning || "No results found for your search. Try adjusting your search criteria."
+        });
+     }
+    console.log(`[search] Serper API returned ${allResults.length} places total across API calls`);
     
-    console.log(`Serper API returned ${allResults.length} places total across ${apiCalls} requests`);
-    
-    // Deduplicate results by place_id to avoid duplicates across pagination
+    // Deduplicate results by place_id
     const seenPlaceIds = new Set<string>();
     const uniqueResults = allResults.filter(result => {
-      if (!result.place_id) return true; // Keep results without place_id
-      if (seenPlaceIds.has(result.place_id)) return false; // Skip duplicates
+      if (!result.place_id) return true; 
+      if (seenPlaceIds.has(result.place_id)) return false;
       seenPlaceIds.add(result.place_id);
       return true;
     });
-    
-    console.log(`After deduplication: ${uniqueResults.length} unique places`);
+    console.log(`[search] After deduplication: ${uniqueResults.length} unique places`);
     
     // Process and normalize results
     let results = uniqueResults.map((result: any) => {
@@ -351,23 +342,18 @@ export async function GET(request: NextRequest) {
       // Process hours information
       if (result.workingHours || result.hours || result.openingHours) {
         const hours = result.workingHours || result.hours || result.openingHours;
-        
-        // Handle different formats of hours data
         if (typeof hours === 'string') {
           standardizedResult.hours = hours.replace(/<[^>]*>/g, '');
         } else if (Array.isArray(hours)) {
           standardizedResult.hours = hours.join(', ');
         } else if (typeof hours === 'object') {
           standardizedResult.hours_data = hours;
-          try {
-            standardizedResult.hours = JSON.stringify(hours);
-          } catch (e) {
-            standardizedResult.hours = 'Hours information available';
-          }
-        }
-      }
-      
-      // Add a data_qualified_count field to indicate if we have good data
+           try { standardizedResult.hours = JSON.stringify(hours); } 
+           catch (e) { standardizedResult.hours = 'Hours information available'; }
+         }
+       }
+       
+       // Add a data_qualified_count field
       let qualityScore = 0;
       if (standardizedResult.latitude && standardizedResult.longitude) qualityScore += 2;
       if (standardizedResult.website) qualityScore += 1;
@@ -385,14 +371,12 @@ export async function GET(request: NextRequest) {
         result.rating && parseFloat(result.rating) >= min
       );
     }
-
     if (maxRating) {
       const max = parseFloat(maxRating);
       results = results.filter((result: any) => 
         result.rating && parseFloat(result.rating) <= max
       );
     }
-    
     // Filter by price level if specified
     if (priceLevel && priceLevel !== "any") {
       const level = parseInt(priceLevel, 10);
@@ -403,132 +387,252 @@ export async function GET(request: NextRequest) {
 
     // Log count of results with coordinates
     const resultsWithCoordinates = results.filter((r: any) => r.latitude && r.longitude).length;
-    console.log(`Total results: ${results.length}, Results with coordinates: ${resultsWithCoordinates}`);
+     console.log(`[search] After filtering: ${results.length} results, ${resultsWithCoordinates} with coordinates`);
 
-    // Check if results might be from the wrong country
+     // Check location warning again after filtering (if still relevant)
     if (results.length > 0 && countryCode) {
-      // Simple heuristic - check if address contains country name
       const expectedCountry = countryCode === "gb" ? "united kingdom" : 
                              countryCode === "us" ? "united states" : "";
-      
       if (expectedCountry) {
         const countryMatches = results.filter((result: any) => 
           result.address && 
           (result.address.toLowerCase().includes(expectedCountry) || 
            result.address.toLowerCase().includes(countryCode))
         ).length;
-        
-        // If less than 20% of results contain the expected country, add a warning
         if (countryMatches / results.length < 0.2) {
           locationWarning = `Results may not be from ${expectedCountry.toUpperCase()}. Try adding the country name to your search.`;
-          console.warn(locationWarning);
+           console.warn("[search] Location mismatch warning triggered after filtering.");
         }
       }
     }
 
     // Limit results to the requested number (maxResults)
-    const requestedMax = searchParams.get("maxResults") ? parseInt(searchParams.get("maxResults") as string, 10) : 20;
-    console.log(`Limiting results to ${requestedMax} as requested (from ${results.length} available)`);
-    
-    // Add safety check - ensure results is not too large to prevent "Invalid array length" errors
-    // Allow up to 100 results, but with safety checks
-    const MAX_SAFE_RESULTS = 100; // Increased from 50 to 100
-    results = results.slice(0, Math.min(requestedMax, MAX_SAFE_RESULTS));
-    
-    // Apply safety checks to each result's properties to prevent array size issues
+     const requestedMax = parseInt(searchParams.get("maxResults") || "20", 10); // Recalculate here just in case
+     console.log(`[search] Limiting final results to ${requestedMax} (from ${results.length} filtered)`);
+     results = results.slice(0, Math.min(requestedMax, 100)); // Keep MAX_SAFE_RESULTS at 100
+     
+     // Apply final safety checks
     results = results.map((result: any) => {
-      // Limit any array properties to reasonable sizes
-      if (result.types && Array.isArray(result.types) && result.types.length > 20) {
-        result.types = result.types.slice(0, 20);
-      }
-      if (result.type && Array.isArray(result.type) && result.type.length > 20) {
-        result.type = result.type.slice(0, 20);
-      }
-      if (result.categories && Array.isArray(result.categories) && result.categories.length > 20) {
-        result.categories = result.categories.slice(0, 20);
-      }
-      
-      // Ensure all array properties are properly initialized
-      if (result.type === undefined || result.type === null) {
-        result.type = [];
-      } else if (!Array.isArray(result.type) && typeof result.type === 'string') {
-        // Convert single string to array if needed
-        result.type = [result.type];
-      }
-      
-      // Ensure values aren't undefined/null to prevent serialization issues
-      Object.keys(result).forEach(key => {
-        if (result[key] === undefined) {
-          delete result[key]; // Remove undefined values that can cause serialization issues
-        }
-      });
-      
+       if (result.type && Array.isArray(result.type) && result.type.length > 20) result.types = result.types.slice(0, 20);
+       else if (result.type && !Array.isArray(result.type)) result.type = [result.type];
+       else if (!result.type) result.type = [];
+       // ... other safety checks ...
+       Object.keys(result).forEach(key => { if (result[key] === undefined) delete result[key]; });
       return result;
     });
 
-    // Record search in database
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    // BEGIN REVISED DATABASE UPDATE
+    let finalRemainingAfterSearch = initialTotalRemaining; 
+    let creditDecremented = false;
     if (user) {
       try {
-        // Add the search record first
-        await supabase.from("lead_searches").insert({
-          user_id: user.id,
-          search_query: query,
-          location: location,
-          results_count: results.length,
-        });
-        
-        // Then decrement remaining searches from user's search packages if they have any
-        const { data: searchPackages } = await supabase
-          .from("user_search_packages")
-          .select("id, remaining_searches")
-          .eq("user_id", user.id)
-          .gt("remaining_searches", 0)
-          .order("purchase_date", { ascending: true })
-          .limit(1);
+        // Restore original decrement logic
+        if (initialRemainingData.packageRemaining > 0 && initialRemainingData.packageIdToDecrement) {
+          const packageIdToDecrement = initialRemainingData.packageIdToDecrement; // Use consistent name
           
-        if (searchPackages && searchPackages.length > 0) {
-          const packageToUpdate = searchPackages[0];
-          const currentRemaining = parseInt(packageToUpdate.remaining_searches as unknown as string);
-          const newRemaining = Math.max(0, currentRemaining - 1);
+          console.log(`[search] Attempting to decrement package ${packageIdToDecrement} from ${initialRemainingData.packageCurrentValue} to ${initialRemainingData.packageCurrentValue - 1}`);
           
-          // Update the package with one less search
-          await supabase
+          // Perform the actual decrement update
+          const { error: updateError } = await supabase
             .from("user_search_packages")
             .update({ 
-              remaining_searches: newRemaining,
-              updated_at: new Date().toISOString()
+              remaining_searches: initialRemainingData.packageCurrentValue - 1, // Correct decrement
+              updated_at: new Date().toISOString() 
             })
-            .eq("id", packageToUpdate.id);
-            
-          console.log(`Decremented search count for package ${packageToUpdate.id} from ${currentRemaining} to ${newRemaining}`);
+            .eq("id", packageIdToDecrement);
+
+          // Log the response
+          console.log(`[search] Supabase update response: error=${JSON.stringify(updateError)}`);
+
+          if (updateError) {
+            console.error(`[search] Error decrementing package ${packageIdToDecrement}:`, updateError);
+          } else {
+            console.log(`[search] Successfully initiated decrement for package ${packageIdToDecrement}. Old: ${initialRemainingData.packageCurrentValue}, New: ${initialRemainingData.packageCurrentValue - 1}.`);
+            finalRemainingAfterSearch = initialTotalRemaining - 1;
+            creditDecremented = true;
+          }
+        } else if (initialRemainingData.remainingMonthly > 0) {
+           // Decrement from monthly logic remains the same
+           console.log(`[search] No package found or package error. Using monthly allowance.`);
+           finalRemainingAfterSearch = initialTotalRemaining - 1; 
+           creditDecremented = true;
         } else {
-          console.log(`No search packages with remaining credits found for user ${user.id}`);
+           // No credits left logic remains the same
+           console.warn(`[search] User ${user.id} performed search, but no credit could be decremented. Total was ${initialTotalRemaining}.`);
+           // finalRemainingAfterSearch remains initialTotalRemaining
+           // creditDecremented remains false
+        }
+
+        // Record the search AFTER attempting decrement
+        try {
+             await supabase.from("lead_searches").insert({
+               user_id: user.id,
+               search_query: query,
+               location: location,
+               results_count: results.length,
+               created_at: new Date().toISOString()
+             });
+             console.log(`[search] Recorded search successfully for user ${user.id}.`);
+        } catch (recordError) {
+             console.error("[search] Error recording search entry:", recordError);
         }
 
       } catch (dbError) {
-        // Just log the error, don't fail the entire search
-        console.error("Error updating search credits:", dbError);
+        console.error("[search] Error during database operations (decrement/record):", dbError);
+         finalRemainingAfterSearch = initialTotalRemaining; // Revert count on error
       }
     }
-
-    // Get the updated remaining searches
-    const updatedRemainingSearches = await getRemainingSearches();
-
-    // Return results
-    return NextResponse.json({
-      results,
-      remaining_searches: updatedRemainingSearches, // Use the freshly calculated value
-      location_warning: locationWarning
-    });
-  } catch (error: any) {
-    console.error("Error in lead finder search:", error);
+    // END REVISED DATABASE UPDATE
+    return NextResponse.json({ results, remaining_searches: finalRemainingAfterSearch, location_warning: locationWarning });
     
+  } catch (error: any) {
+    console.error("Error in lead finder search (outer try-catch):", error);
     return NextResponse.json(
       { error: error.message || "Failed to search" },
       { status: 500 }
     );
+  }
+}
+
+// NEW HELPER FUNCTION
+// Fetches detailed breakdown needed for decrement logic
+async function getRemainingSearchesDetails(userId: string): Promise<{
+  totalRemaining: number;
+  remainingMonthly: number;
+  packageRemaining: number;
+  packageIdToDecrement: string | null;
+  packageCurrentValue: number;
+}> {
+  const supabase = await createClient();
+  let monthlyLimit = 0;
+  let usedMonthly = 0;
+  let packageRemaining = 0;
+  let packageIdToDecrement: string | null = null;
+  let packageCurrentValue = 0;
+
+  try {
+    // 1. Get Subscription Tier (prioritize profiles)
+    let subscriptionTier: string | undefined = undefined;
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", userId)
+      .single();
+      
+    if (profileError && !profileError.message.includes('No rows found')) { // Ignore 'no rows found' as user might be in users table only
+      console.error("[getRemainingSearchesDetails] Error fetching profile:", profileError);
+    } else if (profileData) {
+      subscriptionTier = profileData.subscription_tier ?? undefined;
+    }
+    
+    // Fallback to users table if profile failed or didn't have tier
+    if (!subscriptionTier) {
+       const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("subscription_level")
+        .eq("id", userId)
+        .single();
+       if (userError && !userError.message.includes('No rows found')) {
+         console.error("[getRemainingSearchesDetails] Error fetching users table tier:", userError);
+       } else if (userData) {
+         subscriptionTier = userData.subscription_level ?? undefined;
+       }
+    }
+    console.log(`[getRemainingSearchesDetails] Determined tier: ${subscriptionTier ?? 'unknown'}`);
+
+    // 2. Get Monthly Limit based on Tier
+    const planType = subscriptionTier === 'enterprise' ? 'enterprise' : (subscriptionTier === 'pro' ? 'pro' : 'free');
+    const { data: limitData, error: limitError } = await supabase
+      .from("usage_limits")
+      .select("monthly_limit")
+      .eq("plan_type", planType)
+      .eq("feature_name", "lead_finder_searches")
+      .single();
+
+    if (limitError) {
+      console.error("[getRemainingSearchesDetails] Error fetching usage limit:", limitError);
+    } else {
+      monthlyLimit = limitData?.monthly_limit || 0;
+    }
+    console.log(`[getRemainingSearchesDetails] Monthly Limit for tier ${planType}: ${monthlyLimit}`);
+
+    // 3. Count Used Monthly Searches
+    const firstDayOfMonth = new Date();
+    firstDayOfMonth.setDate(1);
+    firstDayOfMonth.setHours(0, 0, 0, 0);
+    const { count, error: countError } = await supabase
+      .from("lead_searches")
+      .select("id", { count: "exact", head: false })
+      .eq("user_id", userId)
+      .gte("created_at", firstDayOfMonth.toISOString());
+
+    if (countError) {
+      console.error("[getRemainingSearchesDetails] Error counting used searches:", countError);
+    } else {
+      usedMonthly = count || 0;
+    }
+    const remainingMonthly = Math.max(0, monthlyLimit - usedMonthly);
+    console.log(`[getRemainingSearchesDetails] Used monthly: ${usedMonthly}, Remaining monthly: ${remainingMonthly}`);
+
+    // 4. Get Package Details (oldest package with searches remaining)
+    const { data: packageData, error: packageError } = await supabase
+      .from("user_search_packages")
+      .select("id, remaining_searches")
+      .eq("user_id", userId)
+      .gt("remaining_searches", 0)
+      .order("purchase_date", { ascending: true })
+      .limit(1);
+
+    if (packageError) {
+      console.error("[getRemainingSearchesDetails] Error fetching package data:", packageError);
+    } else if (packageData && packageData.length > 0) {
+      packageIdToDecrement = packageData[0].id;
+      // Ensure remaining_searches is treated as a number
+      const currentVal = packageData[0].remaining_searches;
+      packageCurrentValue = typeof currentVal === 'string' ? parseInt(currentVal, 10) : (currentVal as number);
+      packageRemaining = packageCurrentValue; // For simplicity, assume only one package matters for *decrementing*
+      console.log(`[getRemainingSearchesDetails] Oldest package with credits: ID=${packageIdToDecrement}, Remaining=${packageCurrentValue}`);
+      
+      // Fetch ALL packages to sum up total remaining for display/calculation
+      const { data: allPackages, error: allPackagesError } = await supabase
+        .from("user_search_packages")
+        .select("remaining_searches")
+        .eq("user_id", userId)
+        .gt("remaining_searches", 0); 
+        
+      if(allPackagesError) {
+         console.error("[getRemainingSearchesDetails] Error fetching all package totals:", allPackagesError);
+         // Use the single package value if fetching all fails
+      } else {
+         packageRemaining = (allPackages || []).reduce((total, pkg) => {
+            const remaining = typeof pkg.remaining_searches === 'string' 
+              ? parseInt(pkg.remaining_searches, 10) 
+              : (pkg.remaining_searches as number);
+            return total + (remaining || 0);
+          }, 0);
+          console.log(`[getRemainingSearchesDetails] Total remaining from all packages: ${packageRemaining}`);
+      }
+      
+    } else {
+       console.log(`[getRemainingSearchesDetails] No active packages found.`);
+    }
+
+    return {
+      totalRemaining: remainingMonthly + packageRemaining,
+      remainingMonthly: remainingMonthly,
+      packageRemaining: packageRemaining,
+      packageIdToDecrement: packageIdToDecrement,
+      packageCurrentValue: packageCurrentValue, // The specific value in the package we plan to decrement
+    };
+
+  } catch (error) {
+    console.error("[getRemainingSearchesDetails] Critical error:", error);
+    return {
+      totalRemaining: 0,
+      remainingMonthly: 0,
+      packageRemaining: 0,
+      packageIdToDecrement: null,
+      packageCurrentValue: 0,
+    };
   }
 } 

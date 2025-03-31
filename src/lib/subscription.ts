@@ -7,7 +7,7 @@ export const SUBSCRIPTION_LIMITS = {
     auditsPerMonth: 10,
   },
   PRO: {
-    projects: 10,
+    projects: 15,
     auditsPerMonth: 50,
   },
   BUSINESS: {
@@ -25,13 +25,22 @@ export async function getUserSubscriptionPlan(userId: string) {
   const supabase = await createClient();
   
   // Get user's subscription from the database
-  const { data: subscription } = await supabase
+  const { data: subscription, error: subError } = await supabase
     .from("subscriptions")
     .select("*")
     .eq("user_id", userId)
     .single();
   
-  // Default to FREE plan if no subscription found
+  if (subError && subError.code !== 'PGRST116') { // Ignore "No rows found" error
+    // Keep error log
+    console.error("[getUserSubscriptionPlan] Error fetching subscription:", subError);
+    // Fallback to FREE on error
+    return {
+      plan: "FREE",
+      ...SUBSCRIPTION_LIMITS.FREE,
+    };
+  }
+
   if (!subscription) {
     return {
       plan: "FREE",
@@ -39,7 +48,6 @@ export async function getUserSubscriptionPlan(userId: string) {
     };
   }
   
-  // Return the appropriate plan limits
   const plan = subscription.plan.toUpperCase();
   return {
     plan,

@@ -69,11 +69,18 @@ interface LocationData {
 }
 
 interface LeadSearchProps {
-  onSearch: () => void;
+  onSearchComplete: (
+    success: boolean, 
+    results: SearchResult[], 
+    remainingCount: number | null
+  ) => void;
   remainingSearches: number;
 }
 
-export default function LeadSearch({ onSearch, remainingSearches }: LeadSearchProps) {
+export default function LeadSearch({ 
+  onSearchComplete,
+  remainingSearches 
+}: LeadSearchProps) {
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
   const [location, setLocation] = useState("")
@@ -103,16 +110,19 @@ export default function LeadSearch({ onSearch, remainingSearches }: LeadSearchPr
   const handleSearch = async () => {
     if (!searchQuery || !location) {
       setError("Please enter both a search query and location")
+      onSearchComplete(false, [], null)
       return
     }
 
     if (remainingSearches <= 0) {
       setError("You have no searches remaining. Please purchase more searches.")
+      onSearchComplete(false, [], null)
       return
     }
 
     if (minRating > maxRating) {
       setError("Minimum rating cannot be higher than maximum rating")
+      onSearchComplete(false, [], null)
       return
     }
 
@@ -123,6 +133,10 @@ export default function LeadSearch({ onSearch, remainingSearches }: LeadSearchPr
     setSelectedResultIndex(null)
     setSelectedCategories([])
     setAvailableCategories([])
+
+    let searchSuccess = false;
+    let finalResults: SearchResult[] = [];
+    let finalRemainingCount: number | null = null;
 
     try {
       const queryParams = new URLSearchParams({
@@ -185,46 +199,55 @@ export default function LeadSearch({ onSearch, remainingSearches }: LeadSearchPr
         firstFewResults: data.results?.slice(0, 2) || []
       });
       
+      // Store the remaining count received from API
+      finalRemainingCount = typeof data.remaining_searches === 'number' ? data.remaining_searches : null;
+      
       if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
         setError("No results found for your search. Try adjusting your search criteria or location.");
         console.log("No results returned from API");
-        return;
-      }
-      
-      console.log(`Found ${data.results.length} results`);
-      const searchResults = data.results || [];
-      setResults(searchResults)
-      setFilteredResults(searchResults)
-      
-      // Show location warning if present
-      if (data.location_warning) {
-        setError(data.location_warning);
-        console.warn("Location warning:", data.location_warning);
-      }
-      
-      // Extract unique categories from all results
-      const categories = searchResults.reduce((acc: string[], result: SearchResult) => {
-        if (result.type) {
-          if (Array.isArray(result.type)) {
-            result.type.forEach(type => {
-              if (!acc.includes(type)) {
-                acc.push(type);
-              }
-            });
-          } else if (typeof result.type === 'string' && !acc.includes(result.type)) {
-            acc.push(result.type);
-          }
+        searchSuccess = false;
+        finalResults = [];
+        setAvailableCategories([]);
+      } else {
+        console.log(`Found ${data.results.length} results`);
+        finalResults = data.results || [];
+        setResults(finalResults)
+        setFilteredResults(finalResults)
+        searchSuccess = true;
+        
+        // Show location warning if present
+        if (data.location_warning) {
+          setError(data.location_warning);
+          console.warn("Location warning:", data.location_warning);
         }
-        return acc;
-      }, []);
-      
-      setAvailableCategories(categories);
-      onSearch()
+        
+        // Extract categories using finalResults (which comes from data.results)
+        const categories = finalResults.reduce((acc: string[], result: SearchResult) => {
+          if (result.type) {
+            if (Array.isArray(result.type)) {
+              result.type.forEach(type => {
+                if (type && !acc.includes(type)) {
+                  acc.push(type);
+                }
+              });
+            } else if (typeof result.type === 'string' && result.type && !acc.includes(result.type)) {
+              acc.push(result.type);
+            }
+          }
+          return acc;
+        }, []);
+        setAvailableCategories(categories);
+      }
+
     } catch (err: any) {
       setError(err.message || "An error occurred while searching")
       console.error("Search error:", err)
+      searchSuccess = false;
+      finalResults = [];
+      finalRemainingCount = null;
     } finally {
       setIsLoading(false)
+      onSearchComplete(searchSuccess, finalResults, finalRemainingCount);
     }
   }
 
@@ -784,9 +807,26 @@ export default function LeadSearch({ onSearch, remainingSearches }: LeadSearchPr
                             {result.title}
                             {result.price_level && (
                               <span className="text-xs text-muted-foreground mt-1">
-                                {Array(parseInt(result.price_level))
-                                  .fill('$')
-                                  .join('')}
+                                {(() => {
+                                  // Safely parse price level and handle edge cases
+                                  try {
+                                    // Check if it's a string with $ symbols already
+                                    if (typeof result.price_level === 'string' && result.price_level.includes('$')) {
+                                      return result.price_level;
+                                    }
+                                    
+                                    // Try to parse as number, with safety limits
+                                    const priceValue = parseInt(result.price_level);
+                                    if (isNaN(priceValue) || priceValue < 0 || priceValue > 4) {
+                                      return result.price_level; // Return as-is if invalid
+                                    }
+                                    
+                                    return '$'.repeat(priceValue);
+                                  } catch (e) {
+                                    console.error("Error parsing price level:", e);
+                                    return result.price_level; // Return original value on error
+                                  }
+                                })()}
                               </span>
                             )}
                           </div>
