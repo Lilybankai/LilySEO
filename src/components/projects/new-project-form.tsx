@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -33,6 +33,7 @@ import { RecommendationsDisplay } from "@/components/ai/recommendations-display"
 import { AiRecommendation } from "@/services/ai-recommendations"
 import { useSubscription } from "@/hooks/use-subscription"
 import { getUserSubscriptionPlan, SUBSCRIPTION_LIMITS } from "@/lib/subscription"
+import { KeywordSuggestions } from "./keyword-suggestions"
 
 // URL validation with more comprehensive checks
 const urlSchema = z.string()
@@ -47,11 +48,14 @@ const urlSchema = z.string()
   );
 
 const formSchema = z.object({
-  name: z.string().min(2, {
-    message: "Project name must be at least 2 characters.",
+  name: z.string().min(1, {
+    message: "Project name is required.",
   }),
-  url: urlSchema,
+  url: z.string().url({
+    message: "Please enter a valid URL.",
+  }),
   description: z.string().optional(),
+  location: z.string().optional(),
   crawlFrequency: z.enum(["monthly", "weekly", "daily"]).default("monthly"),
   targetKeywords: z.string().optional(),
   competitors: z.string().optional(),
@@ -78,7 +82,7 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
   const [useWizard, setUseWizard] = useState(isFirstTime);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState<{
     show: boolean;
-    feature: 'weekly_crawl' | 'daily_crawl' | 'keyword_grouping' | 'competitor_analysis' | 'white_label' | 'advanced_features';
+    feature: 'keyword_groups' | 'advanced_features' | 'competitors' | 'crawl_frequency' | 'crawl_depth';
   }>({ show: false, feature: 'advanced_features' });
   const [subscription, setSubscription] = useState<{
     isPro: boolean;
@@ -89,9 +93,9 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
     isEnterprise: false,
     tier: 'free'
   });
-  const [industry, setIndustry] = useState<string>("")
-  const [showRecommendations, setShowRecommendations] = useState(false)
-  const [competitorSectionOpen, setCompetitorSectionOpen] = useState(false)
+  const [industry, setIndustry] = useState<string | null>(null);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [competitorSectionOpen, setCompetitorSectionOpen] = useState(false);
   
   // Fetch user subscription on component mount
   useEffect(() => {
@@ -490,6 +494,39 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
     return () => subscription.unsubscribe()
   }, [form.watch])
 
+  // Add a function to handle keyword selection
+  const handleKeywordSelection = (keyword: string) => {
+    // Get current keywords from form
+    const currentKeywords = form.getValues("targetKeywords") || "";
+    const keywordsArray = currentKeywords.split(',').map(k => k.trim()).filter(k => k.length > 0);
+    
+    // Add new keyword if it's not already in the list
+    if (!keywordsArray.includes(keyword)) {
+      keywordsArray.push(keyword);
+      form.setValue("targetKeywords", keywordsArray.join(', '));
+    }
+  };
+
+  // Get form values for AI recommendations
+  const url = form.watch('url');
+  const description = form.watch('description');
+  const selectedIndustry = form.watch('industry');
+  const location = form.watch('location');
+  
+  // Validate URL for AI recommendations
+  const isValidUrl = useMemo(() => {
+    try {
+      if (!url) return false;
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [url]);
+  
+  // Show keyword suggestions only if we have a valid URL
+  const showKeywordSuggestions = isValidUrl && url.length > 0;
+
   if (useWizard) {
     return (
       <div className="space-y-6">
@@ -595,6 +632,26 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g., New York, London, Global" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      If your business targets a specific location, add it here
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
               <FormField
                 control={form.control}
                 name="industry"
@@ -803,6 +860,16 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
                     </FormItem>
                   )}
                 />
+                
+                {showKeywordSuggestions && (
+                  <KeywordSuggestions
+                    url={url}
+                    industry={selectedIndustry}
+                    description={description}
+                    location={location}
+                    onSelectKeyword={handleKeywordSelection}
+                  />
+                )}
                 
                 {showAdvanced && (subscription.isPro || subscription.isEnterprise) && (
                   <div className="border border-border rounded-md p-4">

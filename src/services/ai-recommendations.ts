@@ -16,6 +16,19 @@ export interface AiRecommendationRequest {
   crawlDepth?: number
 }
 
+export interface KeywordSuggestion {
+  keyword: string
+  category: 'branded' | 'long-tail' | 'question' | 'location-based' | 'general'
+  relevance: 'high' | 'medium' | 'low'
+}
+
+export interface KeywordSuggestionRequest {
+  url: string
+  industry?: string
+  description?: string
+  location?: string
+}
+
 /**
  * Generate AI recommendations for a project based on the provided information
  */
@@ -209,5 +222,33 @@ export async function getProjectTemplates(
   } catch (error) {
     console.error('Error getting project templates:', error)
     return []
+  }
+}
+
+/**
+ * Get keyword suggestions based on project information
+ */
+export async function getKeywordSuggestions(
+  request: KeywordSuggestionRequest
+): Promise<KeywordSuggestion[]> {
+  try {
+    // Call the API endpoint
+    const response = await fetch('/api/ai/keyword-suggestions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error getting keyword suggestions: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.suggestions || [];
+  } catch (error) {
+    console.error('Error getting keyword suggestions:', error);
+    return [];
   }
 } 

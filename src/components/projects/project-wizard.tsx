@@ -19,21 +19,40 @@ interface ProjectWizardProps {
   userId: string
 }
 
+interface FormData {
+  name: string
+  url: string
+  description: string
+  industry: string
+  crawlFrequency: string
+  targetKeywords: string
+  location: string
+  competitors: { name: string; url: string }[]
+  keywordGroups: { name: string; keywords: string[] }[]
+  advancedSettings: {
+    excludeUrls: string
+    followRobotsTxt: boolean
+    maxPages: number
+  }
+}
+
 export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardProps) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
-  const [formData, setFormData] = useState({
-    name: "",
-    url: "https://",
-    description: "",
-    crawlFrequency: "monthly",
-    maxPages: 50,
-    targetKeywords: "",
-    competitors: [] as { id: string; name: string; url: string }[],
-    keywordGroups: [] as { id: string; name: string; keywords: string[] }[],
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    url: 'https://',
+    description: '',
+    industry: '',
+    location: '',
+    crawlFrequency: 'monthly',
+    targetKeywords: '',
+    competitors: [],
+    keywordGroups: [],
     advancedSettings: {
-      excludeUrls: "",
-      followRobotsTxt: true
+      excludeUrls: '',
+      followRobotsTxt: true,
+      maxPages: 100
     }
   })
   const [subscription, setSubscription] = useState<{
@@ -111,18 +130,30 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
   }
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    if (field.includes('.')) {
+      // Handle nested fields (e.g., advancedSettings.maxPages)
+      const [parent, child] = field.split('.');
+      setFormData({
+        ...formData,
+        [parent]: {
+          ...formData[parent as keyof typeof formData],
+          [child]: value
+        }
+      });
+    } else {
+      // Handle regular fields
+      setFormData({
+        ...formData,
+        [field]: value
+      });
+    }
     
-    // Clear error for this field if it exists
+    // Clear any errors for the field
     if (errors[field]) {
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors[field]
-        return newErrors
-      })
+      setErrors({
+        ...errors,
+        [field]: ''
+      });
     }
   }
 
@@ -168,14 +199,15 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
       url: formData.url,
       description: formData.description,
       crawlFrequency: formData.crawlFrequency,
-      maxPages: formData.maxPages,
+      maxPages: formData.advancedSettings.maxPages,
       targetKeywords: formData.targetKeywords,
       competitors: formData.competitors,
       keywordGroups: formData.keywordGroups,
       advancedOptions: true,
       excludeUrls: formData.advancedSettings.excludeUrls,
       followRobotsTxt: formData.advancedSettings.followRobotsTxt,
-      industry: ""
+      industry: formData.industry,
+      location: formData.location
     }
     
     onComplete(formattedData)
@@ -185,60 +217,75 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
     switch (currentStep) {
       case 1:
         return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="name" className="block text-sm font-medium">
-                Project Name <span className="text-destructive">*</span>
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="My Website"
-                className={`w-full px-3 py-2 border rounded-md ${errors.name ? 'border-destructive' : 'border-input'}`}
-              />
-              {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
-              <p className="text-sm text-muted-foreground">
-                A name to identify your project (e.g., Company Website, Blog)
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <label htmlFor="url" className="block text-sm font-medium">
-                Website URL <span className="text-destructive">*</span>
-              </label>
-              <div className="flex items-center">
-                <Globe className="mr-2 h-4 w-4 text-muted-foreground" />
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-md font-medium">Basic Information</h3>
+              
+              <div className="space-y-2">
+                <label htmlFor="name" className="block text-sm font-medium">
+                  Project Name<span className="text-red-500 ml-1">*</span>
+                </label>
+                <input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                  placeholder="My Website"
+                  className="w-full px-3 py-2 border border-input rounded-md"
+                  required
+                />
+                <p className="text-sm text-muted-foreground">
+                  A name to identify your project
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="url" className="block text-sm font-medium">
+                  Website URL<span className="text-red-500 ml-1">*</span>
+                </label>
                 <input
                   id="url"
-                  type="text"
                   value={formData.url}
                   onChange={(e) => handleInputChange("url", e.target.value)}
                   placeholder="https://example.com"
-                  className={`w-full px-3 py-2 border rounded-md ${errors.url ? 'border-destructive' : 'border-input'}`}
+                  className="w-full px-3 py-2 border border-input rounded-md"
+                  required
                 />
+                <p className="text-sm text-muted-foreground">
+                  The full URL of your website including https://
+                </p>
               </div>
-              {errors.url && <p className="text-sm text-destructive">{errors.url}</p>}
-              <p className="text-sm text-muted-foreground">
-                The full URL of your website including https://
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <label htmlFor="description" className="block text-sm font-medium">
-                Description (Optional)
-              </label>
-              <textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => handleInputChange("description", e.target.value)}
-                placeholder="Brief description of your website"
-                className="w-full px-3 py-2 border border-input rounded-md resize-none h-24"
-              />
-              <p className="text-sm text-muted-foreground">
-                Add notes or details about this project
-              </p>
+              
+              <div className="space-y-2">
+                <label htmlFor="location" className="block text-sm font-medium">
+                  Location (Optional)
+                </label>
+                <input
+                  id="location"
+                  value={formData.location}
+                  onChange={(e) => handleInputChange("location", e.target.value)}
+                  placeholder="e.g., New York, London, Global"
+                  className="w-full px-3 py-2 border border-input rounded-md"
+                />
+                <p className="text-sm text-muted-foreground">
+                  If your business targets a specific location, add it here
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="description" className="block text-sm font-medium">
+                  Description (Optional)
+                </label>
+                <textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  placeholder="Brief description of your website"
+                  className="w-full px-3 py-2 border border-input rounded-md resize-none h-24"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Add notes or details about this project
+                </p>
+              </div>
             </div>
           </div>
         )
@@ -311,16 +358,16 @@ export function ProjectWizard({ onComplete, onCancel, userId }: ProjectWizardPro
                   type="number"
                   min="1"
                   max={subscription.isEnterprise ? 10000 : subscription.isPro ? 500 : 50}
-                  value={formData.maxPages}
+                  value={formData.advancedSettings.maxPages}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
                     const maxAllowed = subscription.isEnterprise ? 10000 : subscription.isPro ? 500 : 50;
                     if (value > maxAllowed) {
-                      handleInputChange("maxPages", maxAllowed);
+                      handleInputChange("advancedSettings.maxPages", maxAllowed);
                       // Show a message about the limit
                       alert(`Maximum pages limited to ${maxAllowed} on your current plan`);
                     } else {
-                      handleInputChange("maxPages", value);
+                      handleInputChange("advancedSettings.maxPages", value);
                     }
                   }}
                   className="w-full px-3 py-2 border border-input rounded-md"
