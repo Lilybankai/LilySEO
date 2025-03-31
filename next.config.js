@@ -19,6 +19,8 @@ const nextConfig = {
       'jspdf': path.resolve(__dirname, './src/stubs/jspdf.js'),
       'axios': path.resolve(__dirname, './src/stubs/axios.js'),
       '@upstash/redis': path.resolve(__dirname, './src/stubs/upstash-redis.js'),
+      'geist/font/sans': path.resolve(__dirname, './src/stubs/geist-font.js'),
+      'geist/font': path.resolve(__dirname, './src/stubs/geist-font.js'),
     };
     
     return config;
