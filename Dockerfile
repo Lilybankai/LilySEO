@@ -36,9 +36,9 @@ RUN npm install --legacy-peer-deps
 # Create stub files ONLY for packages NOT handled by webpack aliases if needed
 # This section should now be empty as all known issues are handled by aliases
 
-# Force all pages to be server-side rendered by PREPENDING the directive
-# Using sed to insert the line at the beginning of each page file
-RUN find /app/src/app -type f \( -name "page.tsx" -o -name "page.js" \) -exec sed -i "1i export const dynamic = 'force-dynamic';" {} +
+# Force all pages to be server-side rendered 
+# Add dynamic directive in the right position depending on whether "use client" exists
+RUN find /app/src/app -type f \( -name "page.tsx" -o -name "page.js" \) -exec bash -c 'if grep -q "use client" "$1"; then sed -i "/use client/a export const dynamic = \"force-dynamic\";" "$1"; else sed -i "1i export const dynamic = \"force-dynamic\";" "$1"; fi' _ {} \;
 
 # Build the application
 RUN npm run build:css

@@ -41,8 +41,8 @@ interface ProjectPageProps {
   }
 }
 
-export default function ProjectPageWrapper(props: { params: Promise<{ id: string }> }) {
-  const params = use(props.params);
+export default function ProjectPageWrapper(props: { params: { id: string } }) {
+  const params = props.params;
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [project, setProject] = useState<any>(null);
@@ -178,9 +178,23 @@ export default function ProjectPageWrapper(props: { params: Promise<{ id: string
         setLoading(true);
         const supabase = createClient();
         
-        // Check if user is authenticated
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
+        // Check if user is authenticated with robust error handling
+        try {
+          // Try to get user directly first
+          const { data: { user }, error: authError } = await supabase.auth.getUser();
+          
+          if (authError || !user) {
+            console.log("User not found, attempting to refresh session...");
+            const { data: refreshData } = await supabase.auth.refreshSession();
+            
+            if (!refreshData.session) {
+              console.log("No session after refresh, redirecting to login");
+              window.location.href = "/auth/login";
+              return;
+            }
+          }
+        } catch (authError) {
+          console.error("Authentication error:", authError);
           window.location.href = "/auth/login";
           return;
         }

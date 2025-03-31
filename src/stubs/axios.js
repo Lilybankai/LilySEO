@@ -1,26 +1,33 @@
-// Stub file for axios
+// Stub for axios
 const axios = {
-  get: () => Promise.resolve({ data: {}, status: 200 }),
-  post: () => Promise.resolve({ data: {}, status: 200 }),
-  put: () => Promise.resolve({ data: {}, status: 200 }),
-  delete: () => Promise.resolve({ data: {}, status: 200 }),
-  patch: () => Promise.resolve({ data: {}, status: 200 }),
+  get: async () => Promise.resolve({ data: {} }),
+  post: async () => Promise.resolve({ data: {} }),
+  put: async () => Promise.resolve({ data: {} }),
+  delete: async () => Promise.resolve({ data: {} }),
+  patch: async () => Promise.resolve({ data: {} }),
   create: (config) => axios,
   defaults: {
     headers: {
       common: {},
+      get: {},
+      post: {},
+      put: {},
+      delete: {},
+      patch: {}
     },
+    baseURL: '',
+    timeout: 0
   },
   interceptors: {
     request: {
       use: () => 0,
-      eject: () => {},
+      eject: () => {}
     },
     response: {
       use: () => 0,
-      eject: () => {},
-    },
-  },
+      eject: () => {}
+    }
+  }
 };
 
 export default axios; 
