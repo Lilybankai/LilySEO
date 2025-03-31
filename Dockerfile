@@ -4,6 +4,9 @@ FROM node:18-alpine AS base
 FROM base AS deps
 WORKDIR /app
 
+# Install bash first (needed for dynamic page scripts)
+RUN apk add --no-cache bash
+
 # Copy package files
 COPY package.json package-lock.json ./
 
@@ -13,7 +16,7 @@ RUN npm install --production=false --legacy-peer-deps
 
 # Install other potentially missing dependencies
 # Include @supabase/ssr here, but exclude @hello-pangea/dnd (handled by alias)
-RUN npm install @upstash/redis @paypal/react-paypal-js @tanstack/react-query axios geist @supabase/ssr jspdf
+RUN npm install @upstash/redis @paypal/react-paypal-js @tanstack/react-query axios geist @supabase/ssr jspdf postcss-import @react-pdf/renderer
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -21,6 +24,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 # Copy application code AFTER potentially heavy node_modules copy
 COPY . .
+
+# Install bash (needed for dynamic page scripts)
+RUN apk add --no-cache bash
 
 # Set environment variables
 ENV NEXT_TELEMETRY_DISABLED=1

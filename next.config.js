@@ -19,6 +19,7 @@ const nextConfig = {
         '@upstash/redis': path.resolve(__dirname, './src/stubs/upstash-redis.js'),
         'geist/font/sans': path.resolve(__dirname, './src/stubs/geist-font.js'),
         'geist/font/mono': path.resolve(__dirname, './src/stubs/geist-font.js'),
+        '@react-pdf/renderer': path.resolve(__dirname, './src/stubs/react-pdf-renderer.js'),
       };
     }
     
