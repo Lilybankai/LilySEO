@@ -14,9 +14,12 @@ COPY package.json package-lock.json ./
 # Removing specific problematic packages we intend to alias/stub
 RUN npm install --production=false --legacy-peer-deps
 
+# Install PostCSS plugins globally to ensure they're available to the build process
+RUN npm install -g postcss-import postcss-nested postcss-nesting tailwindcss autoprefixer postcss-flexbugs-fixes postcss-preset-env
+
 # Install other potentially missing dependencies
 # Include @supabase/ssr here, but exclude @hello-pangea/dnd (handled by alias)
-RUN npm install @upstash/redis @paypal/react-paypal-js @tanstack/react-query axios geist @supabase/ssr jspdf postcss-import @react-pdf/renderer
+RUN npm install @upstash/redis @paypal/react-paypal-js @tanstack/react-query axios geist @supabase/ssr jspdf postcss-import @react-pdf/renderer postcss-nested postcss-nesting tailwindcss autoprefixer
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -28,6 +31,9 @@ COPY . .
 # Install bash (needed for dynamic page scripts)
 RUN apk add --no-cache bash
 
+# Install PostCSS plugins globally here as well to ensure they're available during build
+RUN npm install -g postcss-import postcss-nested postcss-nesting tailwindcss autoprefixer postcss-flexbugs-fixes postcss-preset-env
+
 # Set environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_SUPABASE_URL=https://fleanljrxzbpayfsviec.supabase.co
@@ -37,7 +43,12 @@ ENV UPSTASH_REDIS_REST_URL=https://fitting-adder-46027.upstash.io
 ENV UPSTASH_REDIS_REST_TOKEN=AbPLAAIjcDEzNzY4YTc1ZWY0MDM0MGJlOWVjOTcxOTI4NDFhYTMwNnAxMA
 
 # Make sure ALL dependencies are properly installed before stubbing
-RUN npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps postcss-import postcss-nested postcss-nesting tailwindcss autoprefixer
+
+# Create a simple postcss.config.mjs file that matches the project's existing configuration
+RUN echo 'export default { plugins: { "postcss-import": {}, "tailwindcss/nesting": "postcss-nesting", tailwindcss: {}, autoprefixer: {} } };' > postcss.config.mjs.new
+# Only use the new config if the existing one can't be found
+RUN test -f postcss.config.mjs || mv postcss.config.mjs.new postcss.config.mjs
 
 # Create stub files ONLY for packages NOT handled by webpack aliases if needed
 # This section should now be empty as all known issues are handled by aliases
