@@ -7,9 +7,11 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies and explicitly add Redis
-RUN npm install --production=false --legacy-peer-deps --ignore-scripts
-RUN npm install @upstash/redis
+# Install dependencies with all optional dependencies
+RUN npm install --production=false --legacy-peer-deps
+
+# Install specific missing dependencies
+RUN npm install @upstash/redis @paypal/react-paypal-js @hello-pangea/dnd @tanstack/react-query
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -24,6 +26,9 @@ ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 ENV SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZsZWFubGpyeHpicGF5ZnN2aWVjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MTczMjE0NSwiZXhwIjoyMDU3MzA4MTQ1fQ.NxG8KGHDd3swZVFPFm_TkaXa8PyGP84Zm7KNlVKRtPE
 ENV UPSTASH_REDIS_REST_URL=https://fitting-adder-46027.upstash.io
 ENV UPSTASH_REDIS_REST_TOKEN=AbPLAAIjcDEzNzY4YTc1ZWY0MDM0MGJlOWVjOTcxOTI4NDFhYTMwNnAxMA
+
+# Make sure dependencies are properly installed
+RUN npm install --legacy-peer-deps
 
 # Build the application
 RUN npm run build:css
