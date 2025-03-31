@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install dependencies and explicitly add Redis
-RUN npm install --production=false --legacy-peer-deps
+RUN npm install --production=false --legacy-peer-deps --ignore-scripts
 RUN npm install @upstash/redis
 
 # Rebuild the source code only when needed
