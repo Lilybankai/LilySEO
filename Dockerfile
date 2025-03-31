@@ -48,6 +48,12 @@ ENV CRON_SECRET=cron_secret_for_daily_job
 # Make sure ALL dependencies are properly installed before stubbing
 RUN npm install --legacy-peer-deps postcss-import postcss-nested postcss-nesting tailwindcss autoprefixer
 
+# Add missing Next.js dependencies for React Server Components
+RUN npm install --no-save react-server-dom-webpack
+
+# Ensure we have a complete Next.js and React setup for the build
+RUN npm install --no-save next@latest react@latest react-dom@latest
+
 # Create a simple postcss.config.mjs file that matches the project's existing configuration
 RUN echo 'export default { plugins: { "postcss-import": {}, "tailwindcss/nesting": "postcss-nesting", tailwindcss: {}, autoprefixer: {} } };' > postcss.config.mjs.new
 # Only use the new config if the existing one can't be found
@@ -56,7 +62,7 @@ RUN test -f postcss.config.mjs || mv postcss.config.mjs.new postcss.config.mjs
 # Create stub files ONLY for packages NOT handled by webpack aliases if needed
 # This section should now be empty as all known issues are handled by aliases
 
-# Force all pages to be server-side rendered 
+# Force all pages to be server-side rendered
 # Create a simple middleware to force all pages to server-side render
 RUN mkdir -p /app/src/middleware
 RUN echo 'export { default } from "next/dist/esm/server/web/spec-extension/fetch-event";' > /app/src/middleware.js
@@ -64,6 +70,12 @@ RUN echo 'export const config = { matcher: "/((?!_next/static|_next/image|favico
 
 # Add a dynamic export to fix client component issues
 RUN find /app/src/app/dashboard -type d -name "changelog" -o -name "subscription" | xargs -I{} sh -c 'echo "export const dynamic = \"force-dynamic\";" > {}/config.js'
+
+# Output environment for debugging
+RUN echo "Node version: $(node -v) && NPM version: $(npm -v)"
+
+# Explicitly force dynamic rendering for all pages
+RUN find /app/src/app -type f -name "page.tsx" -o -name "page.js" | xargs -I{} sh -c 'echo "export const dynamic = \"force-dynamic\";" > $(dirname {})/config.js'
 
 # Build the application
 RUN npm run build:css

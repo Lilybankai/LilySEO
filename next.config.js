@@ -68,6 +68,7 @@ const nextConfig = {
         : '@upstash/redis',
       // Add stubs for internal Next.js dependencies
       'react-server-dom-webpack/server.edge': path.resolve(__dirname, './src/stubs/react-server-dom.js'),
+      'react-server-dom-webpack/client.edge': path.resolve(__dirname, './src/stubs/react-server-dom-client.js'),
       'private-next-rsc-mod-ref-proxy': path.resolve(__dirname, './src/stubs/rsc-mod-ref-proxy.js'),
     };
 
