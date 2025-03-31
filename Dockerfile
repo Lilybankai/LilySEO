@@ -39,7 +39,7 @@ RUN mkdir -p /app/node_modules/@tanstack/react-query && \
     echo "export const PayPalScriptProvider = (props) => props.children; export const PayPalButtons = () => null; export const FUNDING = { PAYPAL: 'paypal', CREDIT: 'credit', CARD: 'card' };" > /app/node_modules/@paypal/react-paypal-js/index.js && \
     mkdir -p /app/node_modules/@supabase/ssr && \
     echo "export const createServerClient = () => ({ auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) } }); export const createBrowserClient = () => ({ auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) } });" > /app/node_modules/@supabase/ssr/index.js && \
-    mkdir -p /app/node_modules/jspdf && \
+    mkdir -p /app/node_modules/jspdf/dist && \
     echo "export class jsPDF { constructor() { return { addPage: () => {}, text: () => {}, addImage: () => {}, save: () => {}, setFontSize: () => {}, setFont: () => {}, setTextColor: () => {}, setFillColor: () => {}, rect: () => {}, line: () => {}, circle: () => {}, output: () => 'dummy-pdf-output' }; } } export default jsPDF;" > /app/node_modules/jspdf/dist/jspdf.min.js && \
     echo "export class jsPDF { constructor() { return { addPage: () => {}, text: () => {}, addImage: () => {}, save: () => {}, setFontSize: () => {}, setFont: () => {}, setTextColor: () => {}, setFillColor: () => {}, rect: () => {}, line: () => {}, circle: () => {}, output: () => 'dummy-pdf-output' }; } } export default jsPDF;" > /app/node_modules/jspdf/index.js && \
     mkdir -p /app/node_modules/@upstash/redis && \
