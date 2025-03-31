@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import FeatureRequestComments from "@/components/dashboard/FeatureRequestComments";
 
 // Interfaces for type safety
 interface ChangelogItem {
@@ -81,6 +82,7 @@ export default function ChangelogPage() {
   const [featureTitle, setFeatureTitle] = useState("");
   const [featureDescription, setFeatureDescription] = useState("");
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
   
   useEffect(() => {
     fetchData();
@@ -146,7 +148,9 @@ export default function ChangelogPage() {
         .rpc('get_user_votes');
       
       if (votesError) {
-        throw votesError;
+        console.error("Error fetching user votes:", votesError);
+        // Don't throw error here - fallback to empty array and continue
+        // This allows the feature request page to load even if the votes can't be fetched
       }
       
       // Add the has_user_upvoted property to each feature request
@@ -161,7 +165,7 @@ export default function ChangelogPage() {
         user_id: feature.user_id,
         status: feature.status.toLowerCase(),
         upvotes: feature.upvotes,
-        comments_count: 0, // We'll need to fetch this separately if needed
+        comments_count: feature.comments_count,
         user: {
           id: feature.user_id,
           email: feature.email,
@@ -183,7 +187,15 @@ export default function ChangelogPage() {
     }
   };
   
+  // Callback function to refresh main data when a comment is added
+  const handleCommentAdded = () => {
+    // Re-fetch feature requests to update the comment count displayed on the card
+    // This is a simple approach; more sophisticated state management could update count directly
+    fetchData(); 
+  };
+
   const handleVote = async (requestId: string, hasVoted: boolean | undefined) => {
+    setVotingId(requestId); // Indicate loading for this specific request
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -193,100 +205,88 @@ export default function ChangelogPage() {
         return;
       }
       
-      if (hasVoted) {
-        // Remove vote
-        const { error } = await supabase
-          .from("feature_request_votes")
-          .delete()
-          .eq("feature_request_id", requestId)
-          .eq("user_id", user.id);
-          
-        if (error) {
-          console.error("Error removing vote:", error);
-          throw error;
-        }
-        
-        // Update upvote count in feature_requests table
-        const { error: updateError } = await supabase
-          .from("feature_requests")
-          .update({ upvotes: supabase.rpc('decrement', { row_id: requestId }) })
-          .eq("id", requestId);
-          
-        if (updateError) {
-          console.error("Error updating upvote count:", updateError);
-          throw updateError;
-        }
-      } else {
-        // Add vote
-        const { error } = await supabase
-          .from("feature_request_votes")
-          .insert({
-            feature_request_id: requestId,
-            user_id: user.id
-          });
-          
-        if (error) {
-          console.error("Error adding vote:", error);
-          throw error;
-        }
-        
-        // Update upvote count in feature_requests table
-        const { error: updateError } = await supabase
-          .from("feature_requests")
-          .update({ upvotes: supabase.rpc('increment', { row_id: requestId }) })
-          .eq("id", requestId);
-          
-        if (updateError) {
-          console.error("Error updating upvote count:", updateError);
-          throw updateError;
-        }
+      // Call the single RPC function to handle voting/unvoting and count update
+      const { data: voteResult, error } = await supabase
+        .rpc('vote_for_feature_request', { 
+          p_feature_request_id: requestId 
+        });
+
+      if (error) {
+        console.error("Error voting:", error);
+        throw error;
       }
       
-      // Toggle vote state in UI
+      // voteResult is TRUE if a vote was added, FALSE if removed
+      const voteAdded = voteResult;
+
+      // Optimistically update the UI based on the result
       setFeatureRequests(prev => 
         prev.map(request => 
           request.id === requestId 
             ? { 
                 ...request, 
-                upvotes: hasVoted ? request.upvotes - 1 : request.upvotes + 1,
-                has_user_upvoted: !hasVoted
+                upvotes: voteAdded ? request.upvotes + 1 : request.upvotes - 1,
+                has_user_upvoted: voteAdded
               } 
             : request
         )
       );
       
-      toast.success(hasVoted ? "Vote removed" : "Vote added");
+      toast.success(voteAdded ? "Vote added" : "Vote removed");
+
     } catch (error) {
       console.error("Error voting:", error);
-      toast.error("Failed to process your vote");
+      // Provide more specific feedback if possible
+      const errorMessage = error instanceof Error ? error.message : "Please try again.";
+      toast.error(`Failed to process vote: ${errorMessage}`);
+      // Optional: Consider reverting optimistic update here if needed
+    } finally {
+      setVotingId(null); // Clear loading indicator
     }
   };
   
   const handleSubmitFeature = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("handleSubmitFeature: Function called.");
     
+    console.log("handleSubmitFeature: Validating title:", featureTitle);
     if (!featureTitle.trim()) {
+      console.log("handleSubmitFeature: Title validation failed.");
       toast.error("Please enter a title for your feature request");
       return;
     }
     
+    console.log("handleSubmitFeature: Validating description:", featureDescription);
     if (!featureDescription.trim() || featureDescription.length < 10) {
+      console.log("handleSubmitFeature: Description validation failed.");
       toast.error("Please enter a detailed description (at least 10 characters)");
       return;
     }
     
     try {
+      console.log("handleSubmitFeature: Setting submitting state to true.");
       setSubmitting(true);
       const supabase = createClient();
       
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log("handleSubmitFeature: Getting user.");
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
       
-      if (!user) {
-        toast.error("You must be logged in to submit a feature request");
+      if (authError) {
+        console.error("handleSubmitFeature: Authentication error:", authError);
+        toast.error("Authentication failed. Please sign in again.");
+        setSubmitting(false);
         return;
       }
       
+      if (!user) {
+        console.log("handleSubmitFeature: User not found.");
+        toast.error("You must be logged in to submit a feature request");
+        setSubmitting(false);
+        return;
+      }
+      
+      console.log("handleSubmitFeature: Inserting feature request for user:", user.id);
       // Insert the feature request into the database
       const { data: newFeatureRequest, error } = await supabase
         .from("feature_requests")
@@ -302,11 +302,14 @@ export default function ChangelogPage() {
         .single();
       
       if (error) {
-        console.error("Error inserting feature request:", error);
+        console.error("handleSubmitFeature: Error inserting feature request:", error);
         throw error;
       }
       
+      console.log("handleSubmitFeature: Feature request inserted:", newFeatureRequest);
+      
       // Also insert the user's vote for their own feature request
+      console.log("handleSubmitFeature: Inserting vote for request:", newFeatureRequest.id);
       const { error: voteError } = await supabase
         .from("feature_request_votes")
         .insert({
@@ -315,8 +318,10 @@ export default function ChangelogPage() {
         });
       
       if (voteError) {
-        console.error("Error inserting vote:", voteError);
+        console.error("handleSubmitFeature: Error inserting vote:", voteError);
         // Don't throw here, as the feature request was still created
+      } else {
+        console.log("handleSubmitFeature: Vote inserted successfully.");
       }
       
       // Create a formatted object to add to the state
@@ -340,19 +345,22 @@ export default function ChangelogPage() {
         has_user_upvoted: true
       };
       
+      console.log("handleSubmitFeature: Adding new request to state:", formattedRequest);
       // Add the new request to the state
       setFeatureRequests(prev => [formattedRequest, ...prev]);
       
       // Reset form
+      console.log("handleSubmitFeature: Resetting form.");
       setFeatureTitle("");
       setFeatureDescription("");
       
       toast.success("Feature request submitted successfully");
       
     } catch (error) {
-      console.error("Error submitting feature request:", error);
-      toast.error("Failed to submit feature request");
+      console.error("handleSubmitFeature: Error submitting feature request (catch block):", error);
+      toast.error(`Failed to submit feature request: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
+      console.log("handleSubmitFeature: Setting submitting state to false in finally block.");
       setSubmitting(false);
     }
   };
@@ -576,9 +584,9 @@ export default function ChangelogPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={
-                          request.user.subscription_tier === "enterprise" ? "bg-purple-100 text-purple-800" :
-                          request.user.subscription_tier === "pro" ? "bg-blue-100 text-blue-800" :
-                          "bg-slate-100"
+                          request.user.subscription_tier === "enterprise" ? "border-purple-300 bg-purple-50 text-purple-800 text-xs px-1.5 py-0.5" :
+                          request.user.subscription_tier === "pro" ? "border-blue-300 bg-blue-50 text-blue-800 text-xs px-1.5 py-0.5" :
+                          "border-gray-300 bg-gray-50 text-gray-600 text-xs px-1.5 py-0.5"
                         }>
                           {request.user.subscription_tier.charAt(0).toUpperCase() + request.user.subscription_tier.slice(1)}
                         </Badge>
@@ -602,12 +610,26 @@ export default function ChangelogPage() {
                       </span>
                     </div>
                   </CardContent>
-                  <CardFooter className="pt-0">
-                    <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                      <MessageSquare className="h-4 w-4 mr-1" />
+                  <CardFooter className="pt-0 flex justify-between items-center">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-muted-foreground hover:text-foreground text-xs"
+                      onClick={() => setExpandedRequestId(expandedRequestId === request.id ? null : request.id)}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 mr-1" />
                       {request.comments_count} {request.comments_count === 1 ? "Comment" : "Comments"}
+                      {expandedRequestId === request.id ? <ChevronUp className="h-3.5 w-3.5 ml-1" /> : <ChevronDown className="h-3.5 w-3.5 ml-1" />}
                     </Button>
                   </CardFooter>
+
+                  {expandedRequestId === request.id && (
+                    <FeatureRequestComments 
+                      requestId={request.id} 
+                      currentUser={userProfile}
+                      onCommentAdded={handleCommentAdded}
+                    />
+                  )}
                 </Card>
               ))}
               
