@@ -18,6 +18,7 @@ const nextConfig = {
       '@supabase/ssr': path.resolve(__dirname, './src/stubs/supabase-ssr.js'),
       'jspdf': path.resolve(__dirname, './src/stubs/jspdf.js'),
       'axios': path.resolve(__dirname, './src/stubs/axios.js'),
+      '@upstash/redis': path.resolve(__dirname, './src/stubs/upstash-redis.js'),
     };
     
     return config;

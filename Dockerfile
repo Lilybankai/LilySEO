@@ -36,7 +36,13 @@ RUN mkdir -p /app/node_modules/@tanstack/react-query && \
     mkdir -p /app/node_modules/@hello-pangea/dnd && \
     echo "export const DragDropContext = (props) => props.children; export const Droppable = (props) => props.children; export const Draggable = (props) => props.children;" > /app/node_modules/@hello-pangea/dnd/index.js && \
     mkdir -p /app/node_modules/@paypal/react-paypal-js && \
-    echo "export const PayPalScriptProvider = (props) => props.children; export const PayPalButtons = () => null;" > /app/node_modules/@paypal/react-paypal-js/index.js
+    echo "export const PayPalScriptProvider = (props) => props.children; export const PayPalButtons = () => null;" > /app/node_modules/@paypal/react-paypal-js/index.js && \
+    mkdir -p /app/node_modules/@supabase/ssr && \
+    echo "export const createServerClient = () => ({ auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) } }); export const createBrowserClient = () => ({ auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) } });" > /app/node_modules/@supabase/ssr/index.js && \
+    mkdir -p /app/node_modules/jspdf && \
+    echo "export default function jsPDF() { return { addPage: () => {}, text: () => {}, save: () => {} }; }" > /app/node_modules/jspdf/index.js && \
+    mkdir -p /app/node_modules/@upstash/redis && \
+    echo "export const Redis = class { constructor() { return { get: () => Promise.resolve(null), set: () => Promise.resolve(null) }; } }; export default { Redis };" > /app/node_modules/@upstash/redis/index.js
 
 # Build the application
 RUN npm run build:css
