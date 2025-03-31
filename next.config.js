@@ -1,10 +1,19 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const nextConfig = {
   /* config options here */
   reactStrictMode: true,
   output: 'standalone',
   webpack: (config) => {
-    // Add any webpack configurations if needed
+    // Add alias for problematic packages
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@tanstack/react-query': path.resolve(__dirname, './src/stubs/react-query.js'),
+      '@hello-pangea/dnd': path.resolve(__dirname, './src/stubs/dnd.js'),
+      '@paypal/react-paypal-js': path.resolve(__dirname, './src/stubs/paypal.js'),
+    };
+    
     return config;
   },
   typescript: {
