@@ -45,6 +45,7 @@ export function KeywordSuggestions({
     }
     
     try {
+      console.log("KeywordSuggestions: Fetching suggestions for URL:", debouncedUrl, "Industry:", industry);
       setIsLoading(true)
       setError(null)
       

@@ -33,6 +33,7 @@ import { RecommendationsDisplay } from "@/components/ai/recommendations-display"
 import { AiRecommendation } from "@/services/ai-recommendations"
 import { useSubscription } from "@/hooks/use-subscription"
 import { getUserSubscriptionPlan, SUBSCRIPTION_LIMITS } from "@/lib/subscription"
+import { KeywordSuggestions } from "./keyword-suggestions.tsx"
 
 // URL validation with more comprehensive checks
 const urlSchema = z.string()
@@ -392,7 +393,7 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
           if (depthMatch && depthMatch[1]) {
             const depth = parseInt(depthMatch[1]);
             if (depth >= 1 && depth <= 10) {
-              form.setValue("crawlDepth", depth);
+              form.setValue("maxPages", depth * 10);  // Convert depth to maxPages (approximation)
             }
           }
         }
@@ -765,41 +766,61 @@ export function NewProjectForm({ userId, isFirstTime = false }: NewProjectFormPr
                   name="targetKeywords"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel>Target Keywords (Optional)</FormLabel>
                       <div className="flex items-center gap-2">
-                        <FormLabel>Target Keywords (Optional)</FormLabel>
+                        <Tag className="h-4 w-4 text-primary" />
+                        <FormLabel>Target Keywords</FormLabel>
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                             </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
+                            <TooltipContent>
                               <p>Enter keywords you want to target, separated by commas. These will be used for AI analysis to provide more relevant recommendations.</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       </div>
                       <FormControl>
-                        <Textarea 
-                          placeholder="keyword1, keyword2, keyword3" 
-                          className="resize-none" 
-                          {...field} 
+                        <Textarea
+                          placeholder="keyword1, keyword2, keyword3..."
+                          className="min-h-[80px]"
+                          {...field}
                         />
                       </FormControl>
-                      <FormDescription className="flex items-center justify-between">
-                        <span>Enter keywords you want to target, separated by commas</span>
+                      <FormDescription>
                         <Button
                           type="button"
-                          variant="outline"
-                          size="sm"
+                          variant="link"
+                          className="p-0 h-auto text-xs"
                           onClick={handleKeywordGroupsClick}
-                          className="flex items-center gap-1"
                         >
-                          <Tag className="h-3 w-3" />
                           {showAdvanced ? "Hide Keyword Groups" : "Show Keyword Groups"}
                           {showAdvanced ? <ChevronUp className="h-3 w-3 ml-1" /> : <ChevronDown className="h-3 w-3 ml-1" />}
                         </Button>
                       </FormDescription>
                       <FormMessage />
+                      
+                      {/* Add Keyword Suggestions Component here, only if a valid URL is entered */}
+                      {form.getValues('url') && form.getValues('url').startsWith('http') && (
+                        <KeywordSuggestions
+                          url={form.getValues('url')}
+                          industry={form.getValues('industry')}
+                          onSelectKeyword={(keyword) => {
+                            const currentKeywords = field.value || '';
+                            const keywordsArray = currentKeywords 
+                              ? currentKeywords.split(',').map(k => k.trim()).filter(k => k.length > 0) 
+                              : [];
+                            
+                            // Add keyword if it doesn't already exist
+                            if (!keywordsArray.includes(keyword)) {
+                              keywordsArray.push(keyword);
+                              field.onChange(keywordsArray.join(', '));
+                            }
+                          }}
+                          isProOrEnterprise={subscription.isPro || subscription.isEnterprise}
+                        />
+                      )}
                     </FormItem>
                   )}
                 />
