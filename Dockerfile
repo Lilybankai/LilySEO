@@ -48,12 +48,6 @@ ENV CRON_SECRET=cron_secret_for_daily_job
 # Make sure ALL dependencies are properly installed before stubbing
 RUN npm install --legacy-peer-deps postcss-import postcss-nested postcss-nesting tailwindcss autoprefixer
 
-# Add missing Next.js dependencies for React Server Components
-RUN npm install --no-save react-server-dom-webpack
-
-# Ensure we have a complete Next.js and React setup for the build
-RUN npm install --no-save next@latest react@latest react-dom@latest
-
 # Create a simple postcss.config.mjs file that matches the project's existing configuration
 RUN echo 'export default { plugins: { "postcss-import": {}, "tailwindcss/nesting": "postcss-nesting", tailwindcss: {}, autoprefixer: {} } };' > postcss.config.mjs.new
 # Only use the new config if the existing one can't be found
