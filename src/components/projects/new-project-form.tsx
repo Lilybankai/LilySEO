@@ -33,7 +33,7 @@ import { RecommendationsDisplay } from "@/components/ai/recommendations-display"
 import { AiRecommendation } from "@/services/ai-recommendations"
 import { useSubscription } from "@/hooks/use-subscription"
 import { getUserSubscriptionPlan, SUBSCRIPTION_LIMITS } from "@/lib/subscription"
-import { KeywordSuggestions } from "./keyword-suggestions.tsx"
+import { KeywordSuggestions } from "./keyword-suggestions"
 
 // URL validation with more comprehensive checks
 const urlSchema = z.string()
