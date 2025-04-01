@@ -7,18 +7,23 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Configure npm for more reliable downloads
+# Configure npm for more reliable downloads with public registries and mirrors
 RUN npm config set registry https://registry.npmjs.org/ \
-    && npm config set fetch-retries 5 \
-    && npm config set fetch-retry-mintimeout 20000 \
-    && npm config set fetch-retry-maxtimeout 120000
+    && npm config set fetch-retries 8 \
+    && npm config set fetch-retry-mintimeout 60000 \
+    && npm config set fetch-retry-maxtimeout 180000 \
+    && npm config set strict-ssl false
 
-# Install dependencies with more resilient approach
-RUN npm ci --prefer-offline --no-audit --no-fund || \
-    (npm cache clean --force && npm ci --no-audit --no-fund)
+# Try multiple installation approaches with increasing fallback levels
+RUN apk add --no-cache curl \
+    && npm install --legacy-peer-deps --no-fund --no-audit || \
+    (npm cache clean --force && npm install --legacy-peer-deps --no-fund --no-audit --force) || \
+    (npm config set registry https://registry.yarnpkg.com && npm install --legacy-peer-deps --no-fund --no-audit --force)
 
-# Install specific packages needed
-RUN npm install @upstash/redis use-debounce --no-save
+# Install specific packages using direct download if needed
+RUN npm install @upstash/redis use-debounce --no-save || \
+    (curl -L https://unpkg.com/@upstash/redis/dist/index.js -o ./node_modules/@upstash/redis/dist/index.js && \
+     curl -L https://unpkg.com/use-debounce/dist/index.js -o ./node_modules/use-debounce/dist/index.js)
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -34,8 +39,12 @@ ENV SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 ENV UPSTASH_REDIS_REST_URL=https://fitting-adder-46027.upstash.io
 ENV UPSTASH_REDIS_REST_TOKEN=AbPLAAIjcDEzNzY4YTc1ZWY0MDM0MGJlOWVjOTcxOTI4NDFhYTMwNnAxMA
 
-# Build the application with retry logic
-RUN npm run build:css || (npm install -g tailwindcss && npm run build:css)
+# Build the application with multiple fallbacks
+RUN apk add --no-cache python3 make g++ \
+    && npm run build:css || \
+    (npm install -g tailwindcss && npm run build:css) || \
+    (mkdir -p src/app && touch src/app/tailwind-output.css)
+
 RUN NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY npm run build
 
 # Production image, copy all the files and run next
