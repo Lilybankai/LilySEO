@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-// Handle potential missing dependency more gracefully
-import { useDebounce as useDebounceHook } from "use-debounce"
+import { useDebounce } from "use-debounce"
 import { Tag, RefreshCw, Sparkles, MapPin, BookmarkIcon, HelpCircle, FileText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,23 +22,6 @@ interface KeywordCategory {
   keywords: string[]
 }
 
-// Simple debounce implementation if the package is missing
-const useDebounce = (value: string, delay: number): [string] => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [value, delay]);
-
-  return [debouncedValue];
-};
-
 export function KeywordSuggestions({
   url,
   industry,
@@ -49,9 +31,7 @@ export function KeywordSuggestions({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [categories, setCategories] = useState<KeywordCategory[]>([])
-  
-  // Try to use the imported useDebounce, fall back to local implementation if not available
-  const [debouncedUrl] = (typeof useDebounceHook === 'function' ? useDebounceHook : useDebounce)(url, 1000)
+  const [debouncedUrl] = useDebounce(url, 1000)
   
   // Reset suggestions when URL changes completely
   useEffect(() => {
