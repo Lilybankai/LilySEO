@@ -7,10 +7,18 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies and explicitly add Redis
-RUN npm install --production=false
-RUN npm install @upstash/redis
-RUN npm install use-debounce
+# Configure npm for more reliable downloads
+RUN npm config set registry https://registry.npmjs.org/ \
+    && npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000
+
+# Install dependencies with more resilient approach
+RUN npm ci --prefer-offline --no-audit --no-fund || \
+    (npm cache clean --force && npm ci --no-audit --no-fund)
+
+# Install specific packages needed
+RUN npm install @upstash/redis use-debounce --no-save
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -26,8 +34,8 @@ ENV SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 ENV UPSTASH_REDIS_REST_URL=https://fitting-adder-46027.upstash.io
 ENV UPSTASH_REDIS_REST_TOKEN=AbPLAAIjcDEzNzY4YTc1ZWY0MDM0MGJlOWVjOTcxOTI4NDFhYTMwNnAxMA
 
-# Build the application
-RUN npm run build:css
+# Build the application with retry logic
+RUN npm run build:css || (npm install -g tailwindcss && npm run build:css)
 RUN NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY npm run build
 
 # Production image, copy all the files and run next
