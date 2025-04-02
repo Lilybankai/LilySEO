@@ -132,8 +132,21 @@ export default function MarketPositionPage() {
 
         const projectResponse = await fetch('/api/projects');
         if (!projectResponse.ok) {
-          throw new Error('Failed to fetch projects');
+          // Handle 401 or other errors appropriately
+          if (projectResponse.status === 401) {
+            setError('Authentication failed. Please log in again.');
+            toast({ title: "Authentication Required", description: "Your session may have expired. Please log in again.", variant: "destructive" });
+            // Optionally redirect to login here
+            // router.push('/auth/login');
+          } else {
+            throw new Error(`Failed to fetch projects (status: ${projectResponse.status})`);
+          }
+          setProjects([]);
+          setSelectedProject(null);
+          setCompetitors([]);
+          return;
         }
+        // Original logic to handle the { data: [...] } structure
         const { data: fetchedProjects } = await projectResponse.json();
 
         if (fetchedProjects && fetchedProjects.length > 0) {
