@@ -10,6 +10,7 @@ import PerformanceMetrics from './PerformanceMetrics';
 import EndPage from './EndPage';
 
 // Register custom fonts - using Google Fonts hosted versions
+/*
 Font.register({
   family: 'Poppins',
   fonts: [
@@ -27,8 +28,10 @@ Font.register({
     { src: 'https://fonts.gstatic.com/s/montserrat/v25/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCu173w_aXc.woff', fontWeight: 'light' }, // Light
   ],
 });
+*/
 
 // Register a fallback sans-serif font to ensure PDF generation works
+// We keep Open Sans registration for now as a general fallback, though Helvetica should be used by default.
 Font.register({
   family: 'sans-serif',
   fonts: [
@@ -58,6 +61,15 @@ const SEOAuditReport: React.FC<SEOAuditReportProps> = ({
   templateId,
 }) => {
   const { theme } = usePdfTheme();
+  
+  // Debug auditData
+  console.log('SEOAuditReport - auditData received:', {
+    score: auditData.score,
+    hasProjects: !!auditData.projects,
+    projectName: auditData.projects?.name,
+    hasReport: !!auditData.report,
+    reportKeys: auditData.report ? Object.keys(auditData.report) : []
+  });
   
   // Extract data from the audit
   const reportData = auditData.report || {};

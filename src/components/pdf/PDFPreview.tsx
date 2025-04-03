@@ -17,6 +17,7 @@ import { fetchPdfTemplates, savePdfTemplate, deletePdfTemplate } from '@/service
 import { PdfTemplate } from './SaveTemplateDialog';
 
 // Register fonts for preview - using system fonts with fallbacks
+/*
 Font.register({
   family: 'Poppins',
   fonts: [
@@ -33,6 +34,7 @@ Font.register({
     { src: 'https://fonts.gstatic.com/s/opensans/v35/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4gaVc.woff', fontWeight: 'normal' }, // Open Sans as backup
   ],
 });
+*/
 
 interface PDFPreviewProps {
   auditData: any;
@@ -68,7 +70,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
     primaryColor: whiteLabel?.primary_color || 'hsl(220 70% 50%)',
     secondaryColor: whiteLabel?.secondary_color || '#4b5563',
     companyName: whiteLabel?.company_name || 'LilySEO',
-    fontFamily: 'Poppins', // Single font name
+    fontFamily: 'Helvetica', // Single font name
     logoUrl: whiteLabel?.logo_url,
     contactInfo: whiteLabel?.custom_domain || 'support@lilyseo.com',
     footerText: whiteLabel?.custom_copyright || `© ${new Date().getFullYear()} ${whiteLabel?.company_name || 'LilySEO'}. All rights reserved.`,
@@ -102,6 +104,14 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
       setIsLoading(true);
       setShowPreview(false);
       
+      // Log the audit data for debugging
+      console.log('PDFPreview - auditData received:', {
+        hasProjects: !!auditData?.projects,
+        hasReport: !!auditData?.report,
+        status: auditData?.status,
+        url: auditData?.url || 'No URL'
+      });
+      
       // Load with short delay to allow dialog animation to complete
       const timer = setTimeout(() => {
         setIsLoading(false);
@@ -109,7 +119,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({
       
       return () => clearTimeout(timer);
     }
-  }, [isOpen, isProUser]);
+  }, [isOpen, isProUser, auditData]);
   
   const loadTemplates = useCallback(async () => {
     if (!isProUser) return;

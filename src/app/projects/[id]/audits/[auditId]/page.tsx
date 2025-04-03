@@ -1003,6 +1003,7 @@ async function AuditDetailPage({ params }: { params: { id: string; auditId: stri
         projectUrl={auditData.project.url}
         status={auditData.audit.status}
         createdAt={auditData.audit.createdAt}
+        auditData={auditData.audit}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

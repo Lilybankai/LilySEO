@@ -12,16 +12,19 @@ import { PDFPreview } from "@/components/pdf"
 import { checkPdfProAccess } from "@/services/pdf-export"
 import { Font } from '@react-pdf/renderer'
 
-// Register fonts - this is required for PDF generation
+// Register Poppins font if used in PDF generation context - consider moving this
+/*
 Font.register({
   family: 'Poppins',
   fonts: [
-    { src: '/fonts/Poppins-Regular.ttf' },
-    { src: '/fonts/Poppins-Bold.ttf', fontWeight: 'bold' },
-    { src: '/fonts/Poppins-Light.ttf', fontWeight: 'light' },
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiEyp8kv8JHgFVrJJfecg.woff', fontWeight: 'normal' }, // Regular
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLCz7Z1xlEw.woff', fontWeight: 'bold' }, // Bold
+    { src: 'https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLEj6Z1xlEw.woff', fontWeight: 'light' }, // Light
   ],
 });
+*/
 
+/*
 Font.register({
   family: 'Montserrat',
   fonts: [
@@ -30,6 +33,7 @@ Font.register({
     { src: '/fonts/Montserrat-Light.ttf', fontWeight: 'light' },
   ],
 });
+*/
 
 interface AuditHeaderProps {
   auditId: string;
@@ -120,12 +124,56 @@ export function AuditHeader({
 
   // Prepare the data for PDF export
   const preparePdfData = () => {
-    // If we have full audit data, use it
+    // Log the audit data for debugging
+    console.log('PDF Export - auditData available:', !!auditData);
     if (auditData) {
-      return auditData;
+      console.log('PDF Export - auditData structure:', {
+        hasReport: !!auditData.report,
+        reportKeys: auditData.report ? Object.keys(auditData.report) : [],
+        status: auditData.status,
+        createdAt: auditData.createdAt
+      });
+      
+      // Transform the data structure to match what the PDF component expects
+      return {
+        id: auditData.id,
+        project_id: projectId,
+        created_at: auditData.createdAt,
+        status: auditData.status,
+        score: auditData.score || 0,
+        url: projectUrl,
+        projects: {
+          name: projectName,
+          url: projectUrl
+        },
+        report: auditData.report || {
+          score: {
+            overall: 0,
+            categories: {
+              onPageSeo: 0,
+              performance: 0,
+              usability: 0,
+              links: 0,
+              social: 0
+            }
+          },
+          issues: {},
+          pageSpeed: {
+            mobile: { performance: 0 },
+            desktop: { performance: 0 }
+          },
+          mozData: {
+            domainAuthority: 0,
+            pageAuthority: 0,
+            linkingDomains: 0,
+            totalLinks: 0
+          }
+        }
+      };
     }
     
     // Otherwise build a minimum viable data structure
+    console.log('PDF Export - Using fallback data structure');
     return {
       id: auditId,
       project_id: projectId,
