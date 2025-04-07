@@ -470,4 +470,88 @@ export function useCalendarTodos(projectId?: string) {
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
+}
+
+export function useBatchUpdatePriority() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ 
+      todoIds, 
+      priority 
+    }: { 
+      todoIds: string[]; 
+      priority: string;
+    }) => {
+      try {
+        console.log(`Updating ${todoIds.length} todos to priority: ${priority}`);
+        
+        const response = await fetch(`/api/todos/batch/priority`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ todoIds, priority }),
+        });
+        
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+          console.error('Error updating todo priorities:', responseData);
+          throw new Error(responseData.error || 'Failed to update todo priorities');
+        }
+        
+        return responseData;
+      } catch (error) {
+        console.error('Error in batch priority update:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    },
+  });
+}
+
+export function useBatchAddTags() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ 
+      todoIds, 
+      tags 
+    }: { 
+      todoIds: string[]; 
+      tags: string[];
+    }) => {
+      try {
+        console.log(`Adding tags ${tags.join(', ')} to ${todoIds.length} todos`);
+        
+        const response = await fetch(`/api/todos/batch/tags`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ todoIds, tags }),
+        });
+        
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+          console.error('Error adding tags to todos:', responseData);
+          throw new Error(responseData.error || 'Failed to add tags to todos');
+        }
+        
+        return responseData;
+      } catch (error) {
+        console.error('Error in batch tag addition:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    },
+  });
 } 
