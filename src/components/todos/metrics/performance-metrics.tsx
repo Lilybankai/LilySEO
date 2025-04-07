@@ -2,12 +2,14 @@
 
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowDown, ArrowUp, CheckCircle, Clock, Brain, Sparkles, Timer } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckCircle, Clock, Sparkles, Timer } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { TodoMetrics as TodoMetricsType } from '@/types/todos';
 import { addMonths, format } from 'date-fns';
+import { useTodoMetrics } from '@/hooks/use-metrics';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Mock metrics data with values from the specifications
+// Temporarily keep mock data as fallback
 const mockMetricsData: TodoMetricsType[] = [
   {
     id: '1',
@@ -51,25 +53,109 @@ const formatTime = (seconds: number): string => {
 };
 
 export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMetricsProps) {
-  // For this implementation, we'll use the mock data directly
-  // This would be replaced with the real API fetching in production
-  const currentMetrics = mockMetricsData[0];
-  const previousMetrics = mockMetricsData[1];
+  // Fetch metrics from the API
+  const { data: metricsData, isLoading, error } = useTodoMetrics(projectId || undefined);
+  
+  // Get current and previous month dates
+  const currentDate = new Date();
+  const currentMonthKey = format(currentDate, 'yyyy-MM');
+  const previousMonthDate = addMonths(currentDate, -1);
+  const previousMonthKey = format(previousMonthDate, 'yyyy-MM');
+  
+  // Get metrics for the current and previous months
+  const currentMetrics = useMemo(() => {
+    // Use real data if available, otherwise fall back to mock data
+    if (metricsData && metricsData.length > 0) {
+      return metricsData.find(
+        metrics => format(new Date(metrics.month), 'yyyy-MM') === currentMonthKey
+      ) || mockMetricsData[0];
+    }
+    return mockMetricsData[0];
+  }, [metricsData, currentMonthKey]);
+  
+  const previousMetrics = useMemo(() => {
+    // Use real data if available, otherwise fall back to mock data
+    if (metricsData && metricsData.length > 0) {
+      return metricsData.find(
+        metrics => format(new Date(metrics.month), 'yyyy-MM') === previousMonthKey
+      ) || mockMetricsData[1];
+    }
+    return mockMetricsData[1];
+  }, [metricsData, previousMonthKey]);
   
   // Calculate key metrics
-  const completionRate = Math.round((currentMetrics.todosCompleted / currentMetrics.todosCreated) * 100);
-  const previousCompletionRate = Math.round((previousMetrics.todosCompleted / previousMetrics.todosCreated) * 100);
+  const completionRate = Math.round((currentMetrics.todosCompleted / currentMetrics.todosCreated) * 100) || 0;
+  const previousCompletionRate = Math.round((previousMetrics.todosCompleted / previousMetrics.todosCreated) * 100) || 0;
   const completionRateChange = completionRate - previousCompletionRate;
   const isCompletionRatePositive = completionRateChange >= 0;
   
-  const completedTasksChange = Math.round(((currentMetrics.todosCompleted - previousMetrics.todosCompleted) / previousMetrics.todosCompleted) * 100);
+  const completedTasksChange = previousMetrics.todosCompleted > 0 
+    ? Math.round(((currentMetrics.todosCompleted - previousMetrics.todosCompleted) / previousMetrics.todosCompleted) * 100)
+    : 0;
   const isCompletedTasksPositive = completedTasksChange >= 0;
   
-  const avgCompletionTimeChange = Math.round(((currentMetrics.averageCompletionTime - previousMetrics.averageCompletionTime) / previousMetrics.averageCompletionTime) * 100);
+  const avgCompletionTimeChange = previousMetrics.averageCompletionTime > 0 
+    ? Math.round(((currentMetrics.averageCompletionTime - previousMetrics.averageCompletionTime) / previousMetrics.averageCompletionTime) * 100)
+    : 0;
   const isAvgTimePositive = avgCompletionTimeChange <= 0; // Decrease in time is positive
   
-  const totalTimeSpentChange = Math.round(((currentMetrics.totalTimeSpent - previousMetrics.totalTimeSpent) / previousMetrics.totalTimeSpent) * 100);
+  const totalTimeSpentChange = previousMetrics.totalTimeSpent > 0 
+    ? Math.round(((currentMetrics.totalTimeSpent - previousMetrics.totalTimeSpent) / previousMetrics.totalTimeSpent) * 100)
+    : 0;
   const isTotalTimePositive = totalTimeSpentChange >= 0;
+  
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24 mt-1" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16 mb-3" />
+                <Skeleton className="h-2 w-full mb-2" />
+                <Skeleton className="h-4 w-32" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-64 mt-1" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-4 w-full" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  // Show error state
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="text-center">
+          <h3 className="text-lg font-medium text-destructive mb-2">Error Loading Metrics</h3>
+          <p className="text-muted-foreground">
+            There was a problem loading your metrics data. Please try again later.
+          </p>
+        </div>
+      </Card>
+    );
+  }
   
   return (
     <div className="space-y-6">
@@ -130,14 +216,16 @@ export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMe
                 {currentMetrics.todosCompleted}
               </div>
               <span className={`text-sm font-medium ${isCompletedTasksPositive ? 'text-green-500' : 'text-red-500'}`}>
-                {isCompletedTasksPositive ? (
-                  <span className="flex items-center">
-                    +{Math.abs(completedTasksChange)}% <ArrowUp className="ml-1 h-4 w-4" />
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    -{Math.abs(completedTasksChange)}% <ArrowDown className="ml-1 h-4 w-4" />
-                  </span>
+                {completedTasksChange !== 0 && (
+                  isCompletedTasksPositive ? (
+                    <span className="flex items-center">
+                      +{Math.abs(completedTasksChange)}% <ArrowUp className="ml-1 h-4 w-4" />
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      -{Math.abs(completedTasksChange)}% <ArrowDown className="ml-1 h-4 w-4" />
+                    </span>
+                  )
                 )}
               </span>
             </div>
@@ -166,14 +254,16 @@ export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMe
                 {formatTime(currentMetrics.averageCompletionTime)}
               </div>
               <span className={`text-sm font-medium ${isAvgTimePositive ? 'text-green-500' : 'text-red-500'}`}>
-                {isAvgTimePositive ? (
-                  <span className="flex items-center">
-                    {Math.abs(avgCompletionTimeChange)}% <ArrowDown className="ml-1 h-4 w-4" />
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    +{Math.abs(avgCompletionTimeChange)}% <ArrowUp className="ml-1 h-4 w-4" />
-                  </span>
+                {avgCompletionTimeChange !== 0 && (
+                  isAvgTimePositive ? (
+                    <span className="flex items-center">
+                      {Math.abs(avgCompletionTimeChange)}% <ArrowDown className="ml-1 h-4 w-4" />
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      +{Math.abs(avgCompletionTimeChange)}% <ArrowUp className="ml-1 h-4 w-4" />
+                    </span>
+                  )
                 )}
               </span>
             </div>
@@ -202,14 +292,16 @@ export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMe
                 {formatTime(currentMetrics.totalTimeSpent)}
               </div>
               <span className={`text-sm font-medium ${isTotalTimePositive ? 'text-green-500' : 'text-red-500'}`}>
-                {isTotalTimePositive ? (
-                  <span className="flex items-center">
-                    +{Math.abs(totalTimeSpentChange)}% <ArrowUp className="ml-1 h-4 w-4" />
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    -{Math.abs(totalTimeSpentChange)}% <ArrowDown className="ml-1 h-4 w-4" />
-                  </span>
+                {totalTimeSpentChange !== 0 && (
+                  isTotalTimePositive ? (
+                    <span className="flex items-center">
+                      +{Math.abs(totalTimeSpentChange)}% <ArrowUp className="ml-1 h-4 w-4" />
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      -{Math.abs(totalTimeSpentChange)}% <ArrowDown className="ml-1 h-4 w-4" />
+                    </span>
+                  )
                 )}
               </span>
             </div>
@@ -236,14 +328,20 @@ export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMe
             <div className="space-y-2">
               <h3 className="text-base font-medium">Productivity Analysis</h3>
               <p className="text-sm text-muted-foreground">
-                You're making good progress with task completion. Consider scheduling dedicated focus time to improve further.
+                {completionRate > 75 
+                  ? "Great job! Your task completion rate is excellent this month. Keep up the good work!"
+                  : completionRate > 50
+                  ? "You're making good progress with task completion. Consider scheduling dedicated focus time to improve further."
+                  : "Your task completion rate could use improvement. Try breaking down large tasks into smaller, manageable pieces."}
               </p>
             </div>
             
             <div className="space-y-2">
               <h3 className="text-base font-medium">Time Management</h3>
               <p className="text-sm text-muted-foreground">
-                Your average task completion time has improved compared to last month. Your efficiency is increasing!
+                {isAvgTimePositive
+                  ? "Your average task completion time has improved compared to last month. Your efficiency is increasing!"
+                  : "Your average completion time has increased. Consider reviewing your workflow for potential bottlenecks."}
               </p>
             </div>
             
