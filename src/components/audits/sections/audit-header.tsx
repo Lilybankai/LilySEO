@@ -63,6 +63,12 @@ export function AuditHeader({
   const [isPro, setIsPro] = useState(false);
   const [isAddingBulkTodos, setIsAddingBulkTodos] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkAddSuccess, setBulkAddSuccess] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`audit-todos-added-${auditId}`) === 'true';
+    }
+    return false;
+  });
   const { toast } = useToast();
 
   const getStatusBadge = () => {
@@ -215,6 +221,13 @@ export function AuditHeader({
 
   // Add function to handle adding all issues to todos
   const handleAddAllToTodos = async () => {
+    // Reset success state when starting a new operation
+    setBulkAddSuccess(false);
+    console.log("[DEBUG-BULK-TODO] Starting bulk todo addition", { 
+      hasIssues: !!auditData?.report?.issues,
+      hasAddToTodoFn: !!onAddToTodo
+    });
+    
     if (!auditData?.report?.issues || !onAddToTodo) {
       toast({
         title: "No Issues Available",
@@ -239,13 +252,53 @@ export function AuditHeader({
       Object.entries(auditData.report.issues).forEach(([category, issues]: [string, any]) => {
         if (Array.isArray(issues)) {
           issues.forEach((issue: any, index: number) => {
+            // Check for recommendation in various formats
+            let recommendation = '';
+            
+            // Log one sample issue to understand structure
+            if (index === 0) {
+              console.log(`[DEBUG-BULK-TODO] Sample issue from ${category}:`, issue);
+            }
+            
+            // Check for common recommendation fields
+            if (issue.recommendation) {
+              recommendation = issue.recommendation;
+            } else if (issue.recommendedAction) {
+              recommendation = issue.recommendedAction;
+            } else if (issue.recommendedActions) {
+              recommendation = Array.isArray(issue.recommendedActions) 
+                ? issue.recommendedActions.join('. ')
+                : issue.recommendedActions;
+            } else if (issue.recommended) {
+              recommendation = `Change to: ${issue.recommended}`;
+            }
+            
+            // If no recommendation found, build one from other fields
+            if (!recommendation) {
+              if (issue.title) {
+                recommendation = `Fix: ${issue.title}`;
+              } else if (issue.description) {
+                recommendation = `Fix issue: ${issue.description.substring(0, 100)}${issue.description.length > 100 ? '...' : ''}`;
+              } else if (issue.current && issue.recommended) {
+                recommendation = `Change from "${issue.current}" to "${issue.recommended}"`;
+              } else {
+                recommendation = `Fix ${category} issue #${index + 1}`;
+              }
+            }
+            
             allIssues.push({
               id: `${category}-${index}`,
-              recommendation: issue.recommendation || '',
+              recommendation,
               issue
             });
           });
         }
+      });
+      
+      console.log("[DEBUG-BULK-TODO] Collected issues", { 
+        totalIssues: allIssues.length,
+        categories: Object.keys(auditData.report.issues),
+        sampleRecommendations: allIssues.slice(0, 3).map(i => i.recommendation)
       });
       
       if (allIssues.length === 0) {
@@ -272,16 +325,34 @@ export function AuditHeader({
       for (let i = 0; i < allIssues.length; i++) {
         const issue = allIssues[i];
         try {
-          if (issue.recommendation) {
-            await onAddToTodo(issue.id, issue.recommendation);
-            successCount++;
-          }
+          console.log(`[DEBUG-BULK-TODO] Adding issue ${i+1}/${allIssues.length}:`, { 
+            id: issue.id,
+            recommendation: issue.recommendation.substring(0, 30) + "..."
+          });
+          
+          await onAddToTodo(issue.id, issue.recommendation);
+          successCount++;
+          console.log(`[DEBUG-BULK-TODO] Successfully added issue ${i+1}`);
         } catch (error) {
-          console.error(`Failed to add issue ${issue.id} to todo:`, error);
+          console.error(`[DEBUG-BULK-TODO] Failed to add issue ${issue.id} to todo:`, error);
         }
         
         // Update progress
         setBulkProgress(Math.round(((i + 1) / allIssues.length) * 100));
+      }
+      
+      console.log("[DEBUG-BULK-TODO] Bulk addition complete", { 
+        successCount,
+        totalIssues: allIssues.length
+      });
+      
+      // Set success state if we added at least one item
+      if (successCount > 0) {
+        setBulkAddSuccess(true);
+        // Store in localStorage to persist across refreshes
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`audit-todos-added-${auditId}`, 'true');
+        }
       }
       
       toast({
@@ -290,7 +361,7 @@ export function AuditHeader({
         variant: successCount > 0 ? "default" : "destructive",
       });
     } catch (error) {
-      console.error("Error in bulk add to todos:", error);
+      console.error("[DEBUG-BULK-TODO] Error in bulk add to todos:", error);
       toast({
         title: "Error",
         description: "Failed to complete bulk addition to todo list.",
@@ -334,11 +405,17 @@ export function AuditHeader({
               size="sm"
               onClick={handleAddAllToTodos}
               disabled={isAddingBulkTodos || !auditData?.report?.issues}
+              className={bulkAddSuccess ? "bg-green-600 hover:bg-green-700 text-white border-green-600" : ""}
             >
               {isAddingBulkTodos ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                   {bulkProgress > 0 ? `${bulkProgress}%` : 'Processing...'}
+                </>
+              ) : bulkAddSuccess ? (
+                <>
+                  <ListPlus className="h-4 w-4 mr-1" />
+                  Added All to Todos
                 </>
               ) : (
                 <>
