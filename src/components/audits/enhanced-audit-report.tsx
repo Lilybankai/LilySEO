@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, ListPlus, Share, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { exportAuditToPdf, checkPdfExportStatus, checkPdfProAccess } from "@/services/pdf-export";
 import { PDFPreview } from "@/components/pdf";
@@ -102,15 +102,19 @@ export function EnhancedAuditReport({ audit, project, onAddToTodo }: EnhancedAud
   const [isPro, setIsPro] = useState(false);
   const [whiteLabel, setWhiteLabel] = useState(null);
   const { toast } = useToast();
+  
+  // Add state for bulk todo addition
+  const [isAddingBulkTodos, setIsAddingBulkTodos] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
 
   // Handle PDF export
   const handleExportPdf = async () => {
     try {
       setIsLoading(true);
       
-      // Check if user has pro access
-      const hasProAccess = await checkPdfProAccess();
-      setIsPro(hasProAccess);
+      // Check if user has premium access
+      const hasPremiumAccess = await checkPdfProAccess();
+      setIsPro(hasPremiumAccess);
       
       // We're now using the client-side approach, so we don't need to fetch extra data
       // Just open the PDF preview dialog
@@ -128,23 +132,147 @@ export function EnhancedAuditReport({ audit, project, onAddToTodo }: EnhancedAud
     }
   };
 
+  // Add function to handle adding all issues to todos
+  const handleAddAllToTodos = async () => {
+    if (!audit.report || !audit.report.issues) {
+      toast({
+        title: "No Issues Available",
+        description: "There are no issues available to add to your todo list.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsAddingBulkTodos(true);
+    setBulkProgress(0);
+    
+    try {
+      // Collect all issues from different categories
+      const allIssues = [];
+      Object.entries(audit.report.issues).forEach(([category, issues]) => {
+        if (Array.isArray(issues)) {
+          issues.forEach((issue, index) => {
+            allIssues.push({
+              id: `${category}-${index}`,
+              recommendation: issue.recommendation || '',
+              issue
+            });
+          });
+        }
+      });
+      
+      if (allIssues.length === 0) {
+        toast({
+          title: "No Issues Found",
+          description: "There are no issues to add to your todo list.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (allIssues.length > 50) {
+        const shouldContinue = window.confirm(
+          `You are about to add ${allIssues.length} issues to your todo list. This might take some time. Continue?`
+        );
+        if (!shouldContinue) {
+          setIsAddingBulkTodos(false);
+          return;
+        }
+      }
+      
+      let successCount = 0;
+      
+      for (let i = 0; i < allIssues.length; i++) {
+        const issue = allIssues[i];
+        try {
+          if (issue.recommendation) {
+            await onAddToTodo(issue.id, issue.recommendation);
+            successCount++;
+          }
+        } catch (error) {
+          console.error(`Failed to add issue ${issue.id} to todo:`, error);
+        }
+        
+        // Update progress
+        setBulkProgress(Math.round(((i + 1) / allIssues.length) * 100));
+      }
+      
+      toast({
+        title: "Bulk Addition Complete",
+        description: `Added ${successCount} of ${allIssues.length} issues to your todo list.`,
+        variant: successCount > 0 ? "default" : "destructive",
+      });
+    } catch (error) {
+      console.error("Error in bulk add to todos:", error);
+      toast({
+        title: "Error",
+        description: "Failed to complete bulk addition to todo list.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingBulkTodos(false);
+      setBulkProgress(0);
+    }
+  };
+
   return (
     <Card className="w-full">
       <div className="flex justify-between items-center p-4 border-b">
         <h2 className="text-2xl font-bold">SEO Audit Report</h2>
-        <Button
-          variant="outline"
-          onClick={handleExportPdf}
-          disabled={isLoading}
-          className="flex items-center gap-2"
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <FileText className="h-4 w-4" />
-          )}
-          {isLoading ? "Preparing..." : "Export PDF"}
-        </Button>
+        <div className="flex gap-2">
+          {/* Add All to Todos button */}
+          <Button
+            variant="outline"
+            onClick={handleAddAllToTodos}
+            disabled={isAddingBulkTodos || !audit.report?.issues}
+            className="flex items-center gap-2"
+          >
+            {isAddingBulkTodos ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {bulkProgress > 0 ? `${bulkProgress}%` : 'Processing...'}
+              </>
+            ) : (
+              <>
+                <ListPlus className="h-4 w-4" />
+                Add All to Todos
+              </>
+            )}
+          </Button>
+          
+          {/* Share button - placeholder */}
+          <Button
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Share className="h-4 w-4" />
+            Share
+          </Button>
+          
+          {/* Rerun Audit button - placeholder */}
+          <Button
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Rerun Audit
+          </Button>
+          
+          {/* Export PDF button */}
+          <Button
+            variant="outline"
+            onClick={handleExportPdf}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4" />
+            )}
+            {isLoading ? "Preparing..." : "Export PDF"}
+          </Button>
+        </div>
       </div>
       
       {/* PDF Preview Dialog */}

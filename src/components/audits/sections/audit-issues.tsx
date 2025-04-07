@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlusCircle, ExternalLink, AlertTriangle, Info, ListPlus, Loader2 } from "lucide-react";
+import { PlusCircle, ExternalLink, AlertTriangle, Info } from "lucide-react";
 import { AddToTodoDialog } from "../dialogs/add-to-todo-dialog";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -49,8 +49,6 @@ export function AuditIssues({ issues, onAddToTodo, projectUrl }: AuditIssuesProp
   const [currentPage, setCurrentPage] = useState(1);
   const [addToTodoOpen, setAddToTodoOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-  const [isAddingBulk, setIsAddingBulk] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState(0);
   const { toast } = useToast();
   const itemsPerPage = 10;
 
@@ -165,63 +163,6 @@ export function AuditIssues({ issues, onAddToTodo, projectUrl }: AuditIssuesProp
     }
   };
 
-  // Add a function to handle adding all filtered issues to todos
-  const handleAddAllToTodos = async () => {
-    const allFilteredIssues = getFilteredIssues();
-    
-    if (allFilteredIssues.length === 0) {
-      toast({
-        title: "No Issues Found",
-        description: "There are no issues matching your current filters to add.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (allFilteredIssues.length > 100) {
-      const shouldContinue = window.confirm(
-        `You are about to add ${allFilteredIssues.length} issues to your todo list. This might take some time. Continue?`
-      );
-      if (!shouldContinue) return;
-    }
-    
-    setIsAddingBulk(true);
-    setBulkProgress(0);
-    
-    try {
-      let successCount = 0;
-      
-      for (let i = 0; i < allFilteredIssues.length; i++) {
-        const issue = allFilteredIssues[i];
-        try {
-          await onAddToTodo(issue.id, issue.recommendation);
-          successCount++;
-        } catch (error) {
-          console.error(`Failed to add issue ${issue.id} to todo:`, error);
-        }
-        
-        // Update progress
-        setBulkProgress(Math.round(((i + 1) / allFilteredIssues.length) * 100));
-      }
-      
-      toast({
-        title: "Bulk Addition Complete",
-        description: `Added ${successCount} of ${allFilteredIssues.length} issues to your todo list.`,
-        variant: successCount > 0 ? "default" : "destructive",
-      });
-    } catch (error) {
-      console.error("Error in bulk add to todos:", error);
-      toast({
-        title: "Error",
-        description: "Failed to complete bulk addition to todo list.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsAddingBulk(false);
-      setBulkProgress(0);
-    }
-  };
-
   const filteredIssues = getFilteredIssues();
   const totalPages = Math.ceil(filteredIssues.length / itemsPerPage);
   const currentIssues = filteredIssues.slice(
@@ -240,68 +181,47 @@ export function AuditIssues({ issues, onAddToTodo, projectUrl }: AuditIssuesProp
       <CardContent>
         <div className="space-y-4">
           {/* Filters */}
-          <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
-            <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
-              <Select
-                value={selectedCategory}
-                onValueChange={setSelectedCategory}
-              >
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {Object.entries(issues).map(([key, value]) => (
-                    <SelectItem key={key} value={key}>
-                      {key.replace(/([A-Z])/g, ' $1').trim()} ({value.length})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={selectedSeverity}
-                onValueChange={setSelectedSeverity}
-              >
-                <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Select severity" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Severities</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Input
-                placeholder="Search issues..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full sm:w-[300px]"
-              />
-            </div>
-            
-            {/* Add All to Todos Button */}
-            <Button
-              onClick={handleAddAllToTodos}
-              disabled={isAddingBulk || filteredIssues.length === 0}
-              className="sm:self-end min-w-[150px]"
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Select
+              value={selectedCategory}
+              onValueChange={setSelectedCategory}
             >
-              {isAddingBulk ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {bulkProgress > 0 ? `${bulkProgress}%` : 'Processing...'}
-                </>
-              ) : (
-                <>
-                  <ListPlus className="h-4 w-4 mr-2" />
-                  Add All to Todos
-                </>
-              )}
-            </Button>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {Object.entries(issues).map(([key, value]) => (
+                  <SelectItem key={key} value={key}>
+                    {key.replace(/([A-Z])/g, ' $1').trim()} ({value.length})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={selectedSeverity}
+              onValueChange={setSelectedSeverity}
+            >
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Select severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Severities</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="info">Info</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Input
+              placeholder="Search issues..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-[300px]"
+            />
           </div>
 
           {/* Issues List */}
