@@ -6,6 +6,7 @@ interface ToastOptions {
   description?: string;
   duration?: number;
   dismissible?: boolean;
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center';
   action?: {
     label: string;
     onClick: () => void;

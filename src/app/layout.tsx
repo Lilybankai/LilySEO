@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
+import { Toaster } from 'sonner';
 import "./globals.css";
 import "./tailwind-import.css"; // Import the compiled Tailwind CSS
 import { QueryProvider } from "@/providers/query-provider";
@@ -33,6 +34,7 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="light" storageKey="lily-theme">
           <QueryProvider>
             {children}
+            <Toaster position="top-right" richColors />
           </QueryProvider>
         </ThemeProvider>
       </body>
