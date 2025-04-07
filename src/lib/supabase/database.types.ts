@@ -312,6 +312,63 @@ export interface Database {
           }
         ]
       }
+      pdf_generation_jobs: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          audit_id: string
+          user_id: string
+          status: 'pending' | 'processing' | 'completed' | 'failed'
+          progress: number
+          parameters: Json
+          error_message: string | null
+          expires_at: string
+          content: Json | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          audit_id: string
+          user_id: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          progress?: number
+          parameters?: Json
+          error_message?: string | null
+          expires_at?: string
+          content?: Json | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          audit_id?: string
+          user_id?: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          progress?: number
+          parameters?: Json
+          error_message?: string | null
+          expires_at?: string
+          content?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_generation_jobs_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdf_generation_jobs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       project_templates: {
         Row: {
           id: string

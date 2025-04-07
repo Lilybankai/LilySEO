@@ -95,14 +95,24 @@ export async function checkPdfProAccess(): Promise<boolean> {
   try {
     const supabase = await createClient();
     
-    // Check subscription status
-    const { data: subscription } = await supabase
-      .from("subscriptions")
-      .select("plan_id")
-      .eq("status", "active")
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return false;
+    }
+    
+    // Check subscription tier in profiles table
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_tier, subscription_status")
+      .eq("id", user.id)
       .single();
     
-    return !!subscription?.plan_id?.includes("pro");
+    // Only consider 'pro' or 'enterprise' tiers with 'active' status
+    return !!profile && 
+           profile.subscription_status === 'active' && 
+           (profile.subscription_tier === 'pro' || profile.subscription_tier === 'enterprise');
   } catch (error) {
     console.error("Error checking PDF pro access:", error);
     return false;
@@ -140,6 +150,34 @@ export async function checkPdfExportStatus(jobId: string): Promise<{ status: str
     return await response.json();
   } catch (error) {
     console.error("PDF status check error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Gets a blob from a previously generated PDF (used by the download endpoint)
+ * @param auditData The audit data to render into a PDF
+ * @param whiteLabel White label settings to apply
+ * @param aiContent Optional AI content to include
+ * @returns The generated PDF as a blob
+ */
+export async function getBlobFromGenerated(
+  auditData: any, 
+  whiteLabel: any, 
+  aiContent?: any
+): Promise<Blob> {
+  try {
+    // Here we would generate the PDF blob
+    // For now, we'll return a placeholder PDF to be replaced with actual implementation
+    
+    // In a real implementation, this would use react-pdf's pdf functionality
+    // to generate a blob on the server side
+    
+    // Create a simple placeholder PDF
+    const placeholderPdf = new Blob(['PDF content would go here'], { type: 'application/pdf' });
+    return placeholderPdf;
+  } catch (error) {
+    console.error("Error creating PDF blob:", error);
     throw error;
   }
 } 

@@ -22,9 +22,30 @@ export const addTodo = async (issueId: string, recommendation: string, options?:
       ? recommendation
       : "Implement the recommended changes to address this issue."
       
-    // Assuming projectId and auditId come from the component's context or options
-    const projectId = window.location.pathname.split('/')[2]; // Extract from URL
-    const auditId = window.location.pathname.split('/')[4]; // Extract from URL
+    // Extract projectId and auditId from the URL
+    const pathname = window.location.pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    
+    // Safe extraction with fallbacks and logging
+    let projectId = '';
+    let auditId = '';
+    
+    if (segments.length >= 4 && segments[0] === 'projects' && segments[2] === 'audits') {
+      projectId = segments[1];
+      auditId = segments[3];
+    }
+    
+    console.log("[DEBUG-BULK-TODO] Adding todo for issue:", {
+      issueId,
+      recommendation: recommendation.substring(0, 50) + "...",
+      projectId,
+      auditId
+    });
+    
+    if (!projectId || !auditId) {
+      console.error("[DEBUG-BULK-TODO] Failed to extract projectId or auditId from URL:", pathname);
+      throw new Error("Missing project ID or audit ID");
+    }
     
     const todoItem = {
       title: todoTitle,
@@ -37,16 +58,24 @@ export const addTodo = async (issueId: string, recommendation: string, options?:
       assignedTo: options?.assigneeId
     };
 
+    console.log("[DEBUG-BULK-TODO] Sending todo item to API:", {
+      ...todoItem,
+      description: todoItem.description.substring(0, 50) + "..."
+    });
+
     const response = await addTodoItem(todoItem);
     
+    console.log("[DEBUG-BULK-TODO] API response:", response);
+    
     if (response.error) {
+      console.error("[DEBUG-BULK-TODO] Error response:", response.error);
       throw new Error(response.error);
     }
     
-    // Don't return the response as it doesn't match the expected void return type
+    // Return immediately to match expected Promise<void> return type
     return;
   } catch (error) {
-    console.error("Error adding todo:", error);
+    console.error("[DEBUG-BULK-TODO] Exception in addTodo:", error);
     throw error;
   }
 }; 

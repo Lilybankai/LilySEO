@@ -4,15 +4,21 @@ export async function GET() {
   try {
     const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
     const apiKey = process.env.AZURE_OPENAI_API_KEY;
+    const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
 
-    if (!endpoint || !apiKey) {
+    if (!endpoint || !apiKey || !deploymentName) {
       return NextResponse.json(
         { error: 'Azure OpenAI credentials not configured' },
         { status: 500 }
       );
     }
 
-    const response = await fetch(endpoint, {
+    // Construct the proper API URL
+    const fullApiUrl = endpoint.includes(deploymentName) ? 
+      `${endpoint}/chat/completions?api-version=2023-05-15` : 
+      `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2023-05-15`;
+
+    const response = await fetch(fullApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
