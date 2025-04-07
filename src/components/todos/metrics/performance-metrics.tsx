@@ -2,12 +2,13 @@
 
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowDown, ArrowUp, CheckCircle, Clock, Sparkles, Timer } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowUp, CheckCircle, Clock, Sparkles, Timer } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { TodoMetrics as TodoMetricsType } from '@/types/todos';
 import { addMonths, format } from 'date-fns';
 import { useTodoMetrics } from '@/hooks/use-metrics';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Temporarily keep mock data as fallback
 const mockMetricsData: TodoMetricsType[] = [
@@ -45,11 +46,29 @@ interface PerformanceMetricsProps {
 // Helper function to format time in hours
 const formatTime = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
   
-  if (hours === 1) {
-    return `${hours} hour`;
-  } 
-  return `${hours} hours`;
+  if (hours === 0) {
+    return `${minutes} min`;
+  } else if (minutes === 0) {
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  } else {
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ${minutes} min`;
+  }
+};
+
+// Default metrics for empty state
+const emptyMetrics: TodoMetricsType = {
+  id: 'empty',
+  projectId: '',
+  userId: '',
+  month: new Date().toISOString(),
+  todosCreated: 0,
+  todosCompleted: 0,
+  averageCompletionTime: 0,
+  totalTimeSpent: 0,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
 };
 
 export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMetricsProps) {
@@ -64,28 +83,31 @@ export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMe
   
   // Get metrics for the current and previous months
   const currentMetrics = useMemo(() => {
-    // Use real data if available, otherwise fall back to mock data
-    if (metricsData && metricsData.length > 0) {
-      return metricsData.find(
-        metrics => format(new Date(metrics.month), 'yyyy-MM') === currentMonthKey
-      ) || mockMetricsData[0];
-    }
-    return mockMetricsData[0];
+    if (!metricsData || metricsData.length === 0) return emptyMetrics;
+    return metricsData.find(
+      metrics => format(new Date(metrics.month), 'yyyy-MM') === currentMonthKey
+    ) || emptyMetrics;
   }, [metricsData, currentMonthKey]);
   
   const previousMetrics = useMemo(() => {
-    // Use real data if available, otherwise fall back to mock data
-    if (metricsData && metricsData.length > 0) {
-      return metricsData.find(
-        metrics => format(new Date(metrics.month), 'yyyy-MM') === previousMonthKey
-      ) || mockMetricsData[1];
-    }
-    return mockMetricsData[1];
+    if (!metricsData || metricsData.length === 0) return emptyMetrics;
+    return metricsData.find(
+      metrics => format(new Date(metrics.month), 'yyyy-MM') === previousMonthKey
+    ) || emptyMetrics;
   }, [metricsData, previousMonthKey]);
   
+  // Check if we have any data
+  const hasData = metricsData && metricsData.length > 0;
+  
   // Calculate key metrics
-  const completionRate = Math.round((currentMetrics.todosCompleted / currentMetrics.todosCreated) * 100) || 0;
-  const previousCompletionRate = Math.round((previousMetrics.todosCompleted / previousMetrics.todosCreated) * 100) || 0;
+  const completionRate = currentMetrics.todosCreated > 0 
+    ? Math.round((currentMetrics.todosCompleted / currentMetrics.todosCreated) * 100) 
+    : 0;
+  
+  const previousCompletionRate = previousMetrics.todosCreated > 0 
+    ? Math.round((previousMetrics.todosCompleted / previousMetrics.todosCreated) * 100) 
+    : 0;
+  
   const completionRateChange = completionRate - previousCompletionRate;
   const isCompletionRatePositive = completionRateChange >= 0;
   
@@ -157,6 +179,20 @@ export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMe
     );
   }
   
+  // Show empty state if no data
+  if (!hasData) {
+    return (
+      <Alert variant="default" className="bg-muted/50">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>No metrics data available</AlertTitle>
+        <AlertDescription>
+          Start creating and completing todos to see your performance metrics here. 
+          Your metrics will be updated as you work with todos.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  
   return (
     <div className="space-y-6">
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -178,17 +214,19 @@ export function PerformanceMetrics({ projectId, searchTerm = "" }: PerformanceMe
               <div className="text-2xl font-bold mb-3">
                 {completionRate}%
               </div>
-              <span className={`text-sm font-medium ${isCompletionRatePositive ? 'text-green-500' : 'text-red-500'}`}>
-                {isCompletionRatePositive ? (
-                  <span className="flex items-center">
-                    +{Math.abs(completionRateChange)}% <ArrowUp className="ml-1 h-4 w-4" />
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    -{Math.abs(completionRateChange)}% <ArrowDown className="ml-1 h-4 w-4" />
-                  </span>
-                )}
-              </span>
+              {previousMetrics.todosCreated > 0 && (
+                <span className={`text-sm font-medium ${isCompletionRatePositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {isCompletionRatePositive ? (
+                    <span className="flex items-center">
+                      +{Math.abs(completionRateChange)}% <ArrowUp className="ml-1 h-4 w-4" />
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      -{Math.abs(completionRateChange)}% <ArrowDown className="ml-1 h-4 w-4" />
+                    </span>
+                  )}
+                </span>
+              )}
             </div>
             <Progress value={completionRate} className="h-2" />
             <div className="mt-2 text-xs text-muted-foreground">
