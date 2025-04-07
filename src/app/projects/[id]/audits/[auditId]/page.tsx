@@ -14,6 +14,8 @@ import { BacklinksSection } from "@/components/audits/sections/backlinks-section
 import { IssuesTable } from "@/components/audits/sections/issues-table";
 import { AiRecommendations } from "@/components/audits/sections/ai-recommendations";
 import { SchemaValidationSection } from "@/components/audits/sections/schema-validation-section";
+import { TodoButton } from "@/components/ui/todo-button";
+import { addTodo } from "./page.client";
 
 interface TransformedAuditReport {
   score: {
@@ -1004,6 +1006,7 @@ async function AuditDetailPage({ params }: { params: { id: string; auditId: stri
         status={auditData.audit.status}
         createdAt={auditData.audit.createdAt}
         auditData={auditData.audit}
+        onAddToTodo={addTodo}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

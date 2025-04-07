@@ -5,7 +5,7 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ArrowLeft, Share2, Download, RefreshCw, Loader2 } from "lucide-react"
+import { ArrowLeft, Share2, Download, RefreshCw, Loader2, ListPlus } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { useToast } from "@/components/ui/use-toast"
 import { PDFPreview } from "@/components/pdf"
@@ -44,6 +44,7 @@ interface AuditHeaderProps {
   createdAt: string;
   onBack?: () => void;
   auditData?: any; // Full audit data if available
+  onAddToTodo?: (issueId: string, recommendation: string, options?: { scheduledFor?: string; assigneeId?: string }) => Promise<void>;
 }
 
 export function AuditHeader({
@@ -54,11 +55,14 @@ export function AuditHeader({
   status,
   createdAt,
   onBack,
-  auditData
+  auditData,
+  onAddToTodo
 }: AuditHeaderProps) {
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPro, setIsPro] = useState(false);
+  const [isAddingBulkTodos, setIsAddingBulkTodos] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
   const { toast } = useToast();
 
   const getStatusBadge = () => {
@@ -84,9 +88,9 @@ export function AuditHeader({
       setIsLoading(true);
       console.log("Export to PDF");
       
-      // Check if user has pro access
-      const hasProAccess = await checkPdfProAccess();
-      setIsPro(hasProAccess);
+      // Check if user has premium access
+      const hasPremiumAccess = await checkPdfProAccess();
+      setIsPro(hasPremiumAccess);
       
       // Open the PDF preview dialog
       setIsPdfPreviewOpen(true);
@@ -209,6 +213,95 @@ export function AuditHeader({
     };
   };
 
+  // Add function to handle adding all issues to todos
+  const handleAddAllToTodos = async () => {
+    if (!auditData?.report?.issues || !onAddToTodo) {
+      toast({
+        title: "No Issues Available",
+        description: "There are no issues available to add to your todo list or the functionality is not enabled.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsAddingBulkTodos(true);
+    setBulkProgress(0);
+    
+    try {
+      // Collect all issues from different categories
+      interface IssueItem {
+        id: string;
+        recommendation: string;
+        issue: any;
+      }
+      
+      const allIssues: IssueItem[] = [];
+      Object.entries(auditData.report.issues).forEach(([category, issues]: [string, any]) => {
+        if (Array.isArray(issues)) {
+          issues.forEach((issue: any, index: number) => {
+            allIssues.push({
+              id: `${category}-${index}`,
+              recommendation: issue.recommendation || '',
+              issue
+            });
+          });
+        }
+      });
+      
+      if (allIssues.length === 0) {
+        toast({
+          title: "No Issues Found",
+          description: "There are no issues to add to your todo list.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (allIssues.length > 50) {
+        const shouldContinue = window.confirm(
+          `You are about to add ${allIssues.length} issues to your todo list. This might take some time. Continue?`
+        );
+        if (!shouldContinue) {
+          setIsAddingBulkTodos(false);
+          return;
+        }
+      }
+      
+      let successCount = 0;
+      
+      for (let i = 0; i < allIssues.length; i++) {
+        const issue = allIssues[i];
+        try {
+          if (issue.recommendation) {
+            await onAddToTodo(issue.id, issue.recommendation);
+            successCount++;
+          }
+        } catch (error) {
+          console.error(`Failed to add issue ${issue.id} to todo:`, error);
+        }
+        
+        // Update progress
+        setBulkProgress(Math.round(((i + 1) / allIssues.length) * 100));
+      }
+      
+      toast({
+        title: "Bulk Addition Complete",
+        description: `Added ${successCount} of ${allIssues.length} issues to your todo list.`,
+        variant: successCount > 0 ? "default" : "destructive",
+      });
+    } catch (error) {
+      console.error("Error in bulk add to todos:", error);
+      toast({
+        title: "Error",
+        description: "Failed to complete bulk addition to todo list.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingBulkTodos(false);
+      setBulkProgress(0);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -234,6 +327,28 @@ export function AuditHeader({
         </div>
         
         <div className="flex flex-wrap gap-2">
+          {/* Add All to Todos button */}
+          {onAddToTodo && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddAllToTodos}
+              disabled={isAddingBulkTodos || !auditData?.report?.issues}
+            >
+              {isAddingBulkTodos ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  {bulkProgress > 0 ? `${bulkProgress}%` : 'Processing...'}
+                </>
+              ) : (
+                <>
+                  <ListPlus className="h-4 w-4 mr-1" />
+                  Add All to Todos
+                </>
+              )}
+            </Button>
+          )}
+          
           <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={isLoading}>
             {isLoading ? (
               <>
