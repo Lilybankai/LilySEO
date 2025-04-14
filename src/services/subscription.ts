@@ -210,8 +210,12 @@ export async function createPayPalSubscription(planId: string): Promise<{ orderI
 
 /**
  * Captures a PayPal order after user approval
+ * Returns success status and the PayPal Subscription ID if successful
  */
-export async function capturePayPalOrder(orderID: string, planId: string): Promise<{ success: boolean }> {
+export async function capturePayPalOrder(
+  orderID: string, 
+  planId: string
+): Promise<{ success: boolean; paypalSubscriptionId?: string; message?: string }> {
   try {
     const response = await fetch('/api/subscriptions/capture-paypal-order', {
       method: 'POST',
@@ -221,15 +225,19 @@ export async function capturePayPalOrder(orderID: string, planId: string): Promi
       body: JSON.stringify({ orderID, planId }),
     });
 
+    const responseData = await response.json();
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to capture PayPal order');
+      throw new Error(responseData.message || responseData.error || 'Failed to capture PayPal order');
     }
 
-    return response.json();
+    return responseData;
   } catch (error) {
     console.error('Error capturing PayPal order:', error);
-    throw error;
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : "An unknown error occurred during payment capture."
+    };
   }
 }
 

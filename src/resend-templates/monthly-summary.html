@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Your Monthly SEO Report</title>
+  <style>
+    /* Basic styles - expand with branding */
+    body { font-family: sans-serif; margin: 20px; color: #333; }
+    .header img { max-width: 150px; margin-bottom: 20px; }
+    .content { padding: 15px; border: 1px solid #eee; border-radius: 5px; }
+    .footer { margin-top: 20px; font-size: 0.8em; color: #777; }
+    .summary-section { margin-bottom: 15px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="/Logos/LilySEO_logo_mark.png" alt="LilySEO Logo"> <!-- Adjust path/URL as needed -->
+  </div>
+  <div class="content">
+    <h1>Your Monthly SEO Report - {{monthYear}}</h1>
+    <p>Hi {{userName}},</p>
+    <p>Here's your performance report for {{monthYear}}:</p>
+    
+    <div class="summary-section">
+      <h2>Overall Performance</h2>
+      <p>Average Audit Score: {{averageAuditScore}}% ({{scoreChange}})</p>
+      <p>Tasks Completed: {{tasksCompletedCount}}</p>
+      <!-- Add more high-level summary points -->
+    </div>
+
+    <div class="summary-section">
+      <h2>Key Changes This Month</h2>
+      <ul>
+        <li>Keyword Ranking Changes: {{keywordChangesSummary}}</li>
+        <li>Competitor Activity: {{competitorActivitySummary}}</li>
+        <li>Top Completed Tasks: {{topTasksSummary}}</li>
+      </ul>
+    </div>
+
+    <!-- Add sections for specific metric deep dives -->
+
+    <p>View your full dashboard for more details:</p>
+    <p><a href="{{dashboardUrl}}">Go to Dashboard</a></p>
+    <p>Thanks,<br>The LilySEO Team</p>
+  </div>
+  <div class="footer">
+    You are receiving this email based on your notification settings. You can change your preferences in the LilySEO app.
+  </div>
+</body>
+</html> 

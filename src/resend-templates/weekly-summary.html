@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Your Weekly SEO Summary</title>
+  <style>
+    /* Basic styles - expand with branding */
+    body { font-family: sans-serif; margin: 20px; color: #333; }
+    .header img { max-width: 150px; margin-bottom: 20px; }
+    .content { padding: 15px; border: 1px solid #eee; border-radius: 5px; }
+    .footer { margin-top: 20px; font-size: 0.8em; color: #777; }
+    .summary-section { margin-bottom: 15px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="/Logos/LilySEO_logo_mark.png" alt="LilySEO Logo"> <!-- Adjust path/URL as needed -->
+  </div>
+  <div class="content">
+    <h1>Your Weekly SEO Summary</h1>
+    <p>Hi {{userName}},</p>
+    <p>Here's a summary of your SEO activity for the week ending {{weekEndingDate}}:</p>
+    
+    <div class="summary-section">
+      <h2>Audits</h2>
+      <p>Audits Completed: {{auditsCompletedCount}}</p>
+      <p>Average Score Change: {{averageScoreChange}}%</p>
+      <!-- Add more audit summary points -->
+    </div>
+
+    <div class="summary-section">
+      <h2>Tasks</h2>
+      <p>Tasks Completed: {{tasksCompletedCount}}</p>
+      <p>Tasks Overdue: {{tasksOverdueCount}}</p>
+      <!-- Add more task summary points -->
+    </div>
+
+    <!-- Add sections for Keywords, Competitors etc. -->
+
+    <p>View your full dashboard for more details:</p>
+    <p><a href="{{dashboardUrl}}">Go to Dashboard</a></p>
+    <p>Thanks,<br>The LilySEO Team</p>
+  </div>
+  <div class="footer">
+    You are receiving this email based on your notification settings. You can change your preferences in the LilySEO app.
+  </div>
+</body>
+</html> 
