@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import Link from 'next/link';
+import React from 'react';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Define navigation items with unique keys
 const navigation = [
@@ -23,27 +23,17 @@ export default function SettingsLayout({
   children 
 }: SettingsLayoutProps) {
   return (
-    <div className="flex flex-col md:flex-row gap-8 p-4 md:p-8">
-      <aside className="w-full md:w-1/4 lg:w-1/5">
-        <nav className="space-y-1">
-          {navigation.map((item) => {
-            const isActive = activeSection === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => setActiveSection(item.key)} // Use the passed function
-                className={`w-full text-left block px-3 py-2 rounded-md text-base font-medium ${
-                  isActive
-                    ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
-                }`}
-              >
-                {item.name}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
+    <div className="flex flex-col gap-6 p-4 md:p-8"> {/* Adjusted layout and gap */}
+      <Tabs value={activeSection} onValueChange={setActiveSection} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6"> {/* Responsive grid */}
+          {navigation.map((item) => (
+            <TabsTrigger key={item.key} value={item.key}>
+              {item.name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      {/* Removed the aside element */}
       <main className="flex-1">
         {children} {/* Render children directly */}
       </main>
