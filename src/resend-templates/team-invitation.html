@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Team Invitation</title>
+  <style>
+    /* Basic styles - expand with branding */
+    body { font-family: sans-serif; margin: 20px; color: #333; }
+    .header img { max-width: 150px; margin-bottom: 20px; }
+    .content { padding: 15px; border: 1px solid #eee; border-radius: 5px; }
+    .footer { margin-top: 20px; font-size: 0.8em; color: #777; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="/Logos/LilySEO_logo_mark.png" alt="LilySEO Logo"> <!-- Adjust path/URL as needed -->
+  </div>
+  <div class="content">
+    <h1>You're Invited!</h1>
+    <p>Hi {{inviteeName}},</p>
+    <p>You have been invited by {{inviterName}} ({{inviterEmail}}) to join their team on LilySEO.</p>
+    <p>Click the link below to accept the invitation and create your account (or sign in if you already have one).</p>
+    <p><a href="{{acceptUrl}}">Accept Invitation</a></p>
+    <p>This invitation will expire in 7 days.</p>
+    <p>Thanks,<br>The LilySEO Team</p>
+  </div>
+  <div class="footer">
+    If you were not expecting this invitation, please ignore this email.
+  </div>
+</body>
+</html> 

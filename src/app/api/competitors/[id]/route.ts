@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, context: { params: { id: string 
     
     // Get the competitor data
     const { data, error } = await supabase
-      .from("competitor_data")
+      .from("competitors")
       .select(`
         *,
         projects:project_id (
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, context: { params: { id: string 
     
     if (!data) {
       return NextResponse.json(
-        { error: "Competitor analysis not found" },
+        { error: "Competitor not found" },
         { status: 404 }
       );
     }
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, context: { params: { id: string 
 }
 
 /**
- * DELETE handler for deleting a specific competitor analysis
+ * DELETE handler for deleting a specific competitor
  * @param request The incoming request
  * @param context The route context with params
  * @returns A response indicating success or failure
@@ -79,24 +79,24 @@ export async function DELETE(request: NextRequest, context: { params: { id: stri
       );
     }
     
-    // Verify that the competitor data belongs to the user
-    const { data: competitorData, error: competitorError } = await supabase
-      .from("competitor_data")
+    // Verify that the competitor belongs to the user
+    const { data: competitor, error: competitorError } = await supabase
+      .from("competitors")
       .select("id")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
     
-    if (competitorError || !competitorData) {
+    if (competitorError || !competitor) {
       return NextResponse.json(
-        { error: "Competitor analysis not found or access denied" },
+        { error: "Competitor not found or access denied" },
         { status: 404 }
       );
     }
     
-    // Delete the competitor data
+    // Delete the competitor
     const { error } = await supabase
-      .from("competitor_data")
+      .from("competitors")
       .delete()
       .eq("id", id);
     

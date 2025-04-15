@@ -26,10 +26,10 @@ export async function GET(request: NextRequest) {
     
     // Build query
     let query = supabase
-      .from("competitor_data")
+      .from("competitors")
       .select(`
         *,
-        projects:project_id (
+        projects (
           id,
           name,
           url
@@ -47,14 +47,34 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     
     if (error) {
+      console.error("Error fetching competitors:", error);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
       );
     }
     
-    return NextResponse.json({ data });
+    // Ensure all competitor objects have required properties to prevent undefined errors
+    const sanitizedData = data?.map(comp => ({
+      id: comp.id || "",
+      competitor_url: comp.competitor_url || "",
+      status: comp.status || "pending",
+      last_analyzed_at: comp.last_analyzed_at || null,
+      project_id: comp.project_id || "",
+      created_at: comp.created_at || "",
+      user_id: comp.user_id || "",
+      error_message: comp.error_message || null,
+      analysis_data: comp.analysis_data || null,
+      projects: comp.projects ? {
+        id: comp.projects.id || "",
+        name: comp.projects.name || "",
+        url: comp.projects.url || ""
+      } : null
+    })) || [];
+    
+    return NextResponse.json({ data: sanitizedData });
   } catch (error: any) {
+    console.error("Error in GET /api/competitors:", error);
     return NextResponse.json(
       { error: error.message || "An error occurred" },
       { status: 500 }

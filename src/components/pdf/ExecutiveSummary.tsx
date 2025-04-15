@@ -19,17 +19,157 @@ interface ExecutiveSummaryProps {
   };
   backlinksCount?: number;
   keywordsCount?: number;
+  auditData?: any;
+  isProUser?: boolean;
+  useAiContent?: boolean;
+  mobileScore?: number;
+  desktopScore?: number;
+  topIssuesByCategory?: Record<string, { title: string; severity: string }[]>;
 }
 
 const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
   overallScore,
   categoryScores,
-  issuesSummary,
-  pageSpeedScores,
+  issuesSummary = { high: 0, medium: 0, low: 0, total: 0 },
+  pageSpeedScores = { mobile: 0, desktop: 0 },
   backlinksCount,
   keywordsCount,
+  auditData,
+  isProUser = false,
+  useAiContent = false,
+  mobileScore,
+  desktopScore,
+  topIssuesByCategory
 }) => {
   const { theme } = usePdfTheme();
+  
+  // Ensure issuesSummary has all required fields with fallbacks
+  const safeIssuesSummary = {
+    high: issuesSummary?.high || 0,
+    medium: issuesSummary?.medium || 0,
+    low: issuesSummary?.low || 0,
+    total: issuesSummary?.total || 0
+  };
+  
+  // Ensure pageSpeedScores has all required fields with fallbacks
+  const safePageSpeedScores = {
+    mobile: pageSpeedScores?.mobile || 0,
+    desktop: pageSpeedScores?.desktop || 0
+  };
+  
+  // Add null checking before using Object.entries
+  const hasValidAiContent = auditData?.ai_content && typeof auditData.ai_content === 'object';
+  const hasValidAiExecSummary = auditData?.ai_executive_summary && typeof auditData.ai_executive_summary === 'string';
+  
+  // When doing getAiContent, add null checks
+  const getAiContent = () => {
+    // Check if we should use AI content
+    if (!useAiContent) return null;
+    
+    // Try to get AI content from different possible locations
+    let aiContent = null;
+    
+    if (hasValidAiExecSummary) {
+      aiContent = auditData.ai_executive_summary;
+    } else if (hasValidAiContent && auditData.ai_content.executive_summary) {
+      aiContent = auditData.ai_content.executive_summary;
+    }
+    
+    // Add defensive check for job_content
+    if (!aiContent && auditData?.job_content && typeof auditData.job_content === 'object') {
+      aiContent = auditData.job_content.executiveSummary;
+    }
+    
+    return aiContent;
+  };
+  
+  // Get AI content from auditData if available - add better fallback handling
+  const aiExecutiveSummary = getAiContent();
+  
+  // Check if the summary appears to be a fallback/error message
+  const isFallbackContent = aiExecutiveSummary && 
+    typeof aiExecutiveSummary === 'string' && 
+    (aiExecutiveSummary.includes('fallback') || 
+    aiExecutiveSummary.includes('error'));
+  
+  // Log AI content availability for debugging
+  console.log('ExecutiveSummary - AI content available:', {
+    useAiContent,
+    hasAiContent: !!aiExecutiveSummary,
+    aiContentLength: aiExecutiveSummary ? aiExecutiveSummary.length : 0,
+    isFallbackContent,
+    aiContentType: typeof aiExecutiveSummary
+  });
+  
+  // Use a proper executive summary even if AI generation failed
+  const effectiveExecutiveSummary = (!aiExecutiveSummary || isFallbackContent) ? 
+    generateStandardExecutiveSummary(auditData) : 
+    aiExecutiveSummary;
+  
+  // Function to generate a standard executive summary from audit data
+  function generateStandardExecutiveSummary(data: any): string {
+    try {
+      // Extract domain from URL
+      const url = data.url || '';
+      let domain = url;
+      try {
+        if (url && url.includes('://')) {
+          const urlObj = new URL(url);
+          domain = urlObj.hostname;
+        }
+      } catch (e) {
+        // Ignore URL parsing errors
+      }
+      
+      // Get overall score
+      const score = data.score || data.report?.score?.overall || 0;
+      
+      // Determine quality level
+      let quality = "needs improvement";
+      if (score >= 80) quality = "excellent";
+      else if (score >= 65) quality = "good";
+      else if (score >= 50) quality = "fair";
+      
+      // Count issues
+      const issues = data.report?.issues || {};
+      const totalIssues = Object.values(issues)
+        .reduce((total: number, items: any) => 
+          total + (Array.isArray(items) ? items.length : 0), 0);
+      
+      // Mention top categories that need improvement
+      const categories = data.report?.score?.categories || {};
+      const lowCategories = Object.entries(categories)
+        .filter(([_, score]) => (score as number) < 60)
+        .map(([key, _]) => key)
+        .slice(0, 2)
+        .map(formatCategoryName);
+      
+      // Create improvement areas text
+      let improvementText = "";
+      if (lowCategories.length > 0) {
+        improvementText = `Focus areas for improvement include ${lowCategories.join(' and ')}.`;
+      }
+      
+      // Construct the summary
+      return `This SEO audit for ${domain} reveals an overall score of ${Math.round(score)}/100, indicating ${quality} performance. We identified ${totalIssues} issues that are impacting your search visibility. ${improvementText} Addressing the recommendations in this report will help improve your website's search engine rankings and user experience.`;
+    } catch (error) {
+      console.error('Error generating standard executive summary:', error);
+      return "This SEO audit report provides a comprehensive analysis of your website's search engine optimization. It identifies key issues affecting your site's performance and offers actionable recommendations for improvement.";
+    }
+  }
+  
+  // Helper function to format category names
+  function formatCategoryName(category: string): string {
+    // Handle camelCase or snake_case
+    const formatted = category
+      .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+      .replace(/_/g, ' ') // Replace underscores with spaces
+      .toLowerCase()
+      .trim();
+    
+    // Capitalize first letter
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  }
   
   // Function to get color based on score
   const getScoreColor = (score: number) => {
@@ -150,11 +290,47 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
       fontSize: 10,
       color: theme.secondaryColor,
     },
+    aiContent: {
+      marginBottom: 15,
+      padding: 10,
+      backgroundColor: '#f0f9ff', // light blue background
+      borderRadius: 4,
+      border: '1pt solid #93c5fd', // light blue border
+    },
+    aiContentHeading: {
+      fontSize: 12,
+      color: theme.primaryColor,
+      marginBottom: 5,
+      fontWeight: 'bold',
+    },
+    aiContentText: {
+      fontSize: 10,
+      lineHeight: 1.5,
+    },
+    aiContentFooter: {
+      fontSize: 8,
+      marginTop: 5,
+      color: theme.secondaryColor,
+      fontStyle: 'italic',
+    }
   });
 
   return (
     <Page size="A4" style={styles.page}>
       <Text style={styles.header}>Executive Summary</Text>
+      
+      {/* Display AI-generated content if available and enabled */}
+      {useAiContent && effectiveExecutiveSummary && (
+        <View style={[styles.section, styles.aiContent]}>
+          <Text style={styles.aiContentHeading}>
+            {isFallbackContent ? 'Executive Summary' : 'AI-Generated Executive Summary'}
+          </Text>
+          <Text style={styles.aiContentText}>{effectiveExecutiveSummary}</Text>
+          {!isFallbackContent && (
+            <Text style={styles.aiContentFooter}>Generated with Azure OpenAI GPT-4o</Text>
+          )}
+        </View>
+      )}
       
       {/* Overall Score */}
       <View style={styles.section}>
@@ -182,20 +358,20 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
       {/* Category Scores */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Category Scores</Text>
-        {Object.entries(categoryScores).map(([category, score], index) => (
+        {Object.entries(categoryScores || {}).map(([category, score], index) => (
           <View key={index} style={styles.scoreRow}>
-            <View style={[styles.scoreCircle, { backgroundColor: getScoreColor(score) }]}>
-              <Text style={styles.scoreText}>{Math.round(score)}</Text>
+            <View style={[styles.scoreCircle, { backgroundColor: getScoreColor(score as number) }]}>
+              <Text style={styles.scoreText}>{Math.round(score as number)}</Text>
             </View>
             <View style={styles.scoreDetails}>
               <Text style={styles.scoreLabel}>
-                {category.replace(/([A-Z])/g, ' $1').trim()}
+                {formatCategoryName(category)}
               </Text>
               <View style={styles.scoreBarContainer}>
                 <View 
                   style={[
                     styles.scoreBar, 
-                    { width: `${score}%`, backgroundColor: getScoreColor(score) }
+                    { width: `${score}%`, backgroundColor: getScoreColor(score as number) }
                   ]} 
                 />
               </View>
@@ -209,15 +385,15 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
         <Text style={styles.sectionTitle}>Issues Found</Text>
         <View style={styles.issuesSummary}>
           <View style={styles.issueBox}>
-            <Text style={[styles.issueCount, { color: '#ef4444' }]}>{issuesSummary.high}</Text>
+            <Text style={[styles.issueCount, { color: '#ef4444' }]}>{safeIssuesSummary.high}</Text>
             <Text style={styles.issueLabel}>Critical Issues</Text>
           </View>
           <View style={styles.issueBox}>
-            <Text style={[styles.issueCount, { color: '#eab308' }]}>{issuesSummary.medium}</Text>
+            <Text style={[styles.issueCount, { color: '#eab308' }]}>{safeIssuesSummary.medium}</Text>
             <Text style={styles.issueLabel}>Warnings</Text>
           </View>
           <View style={styles.issueBox}>
-            <Text style={[styles.issueCount, { color: '#22c55e' }]}>{issuesSummary.low}</Text>
+            <Text style={[styles.issueCount, { color: '#22c55e' }]}>{safeIssuesSummary.low}</Text>
             <Text style={styles.issueLabel}>Notices</Text>
           </View>
         </View>
@@ -229,11 +405,11 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
         <View style={styles.keyMetrics}>
           <View style={styles.metricItem}>
             <Text style={styles.metricLabel}>Mobile Page Speed</Text>
-            <Text style={styles.metricValue}>{pageSpeedScores.mobile}/100</Text>
+            <Text style={styles.metricValue}>{safePageSpeedScores.mobile}/100</Text>
           </View>
           <View style={styles.metricItem}>
             <Text style={styles.metricLabel}>Desktop Page Speed</Text>
-            <Text style={styles.metricValue}>{pageSpeedScores.desktop}/100</Text>
+            <Text style={styles.metricValue}>{safePageSpeedScores.desktop}/100</Text>
           </View>
           {backlinksCount !== undefined && (
             <View style={styles.metricItem}>

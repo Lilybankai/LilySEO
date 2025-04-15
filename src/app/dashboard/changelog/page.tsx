@@ -44,6 +44,21 @@ interface ChangelogItem {
   version?: string;
 }
 
+interface Comment {
+  id: string;
+  created_at: string;
+  user_id: string;
+  content: string;
+  is_internal: boolean;
+  user: {
+    email: string;
+    first_name?: string;
+    last_name?: string;
+    avatar_url?: string | null;
+    subscription_tier: string;
+  };
+}
+
 interface FeatureRequest {
   id: string;
   title: string;
@@ -62,6 +77,7 @@ interface FeatureRequest {
     subscription_tier: string;
   };
   has_user_upvoted?: boolean;
+  comments?: Comment[];
 }
 
 export default function ChangelogPage() {
@@ -81,6 +97,10 @@ export default function ChangelogPage() {
   const [featureTitle, setFeatureTitle] = useState("");
   const [featureDescription, setFeatureDescription] = useState("");
   const [userProfile, setUserProfile] = useState<any>(null);
+  
+  const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [loadingComments, setLoadingComments] = useState(false);
   
   useEffect(() => {
     fetchData();
@@ -161,7 +181,7 @@ export default function ChangelogPage() {
         user_id: feature.user_id,
         status: feature.status.toLowerCase(),
         upvotes: feature.upvotes,
-        comments_count: 0, // We'll need to fetch this separately if needed
+        comments_count: feature.comments_count || 0, // Use fetched count, default to 0 if null/undefined
         user: {
           id: feature.user_id,
           email: feature.email,
@@ -185,6 +205,7 @@ export default function ChangelogPage() {
   
   const handleVote = async (requestId: string, hasVoted: boolean | undefined) => {
     try {
+      setVotingId(requestId);
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -193,72 +214,44 @@ export default function ChangelogPage() {
         return;
       }
       
-      if (hasVoted) {
-        // Remove vote
-        const { error } = await supabase
-          .from("feature_request_votes")
-          .delete()
-          .eq("feature_request_id", requestId)
-          .eq("user_id", user.id);
-          
-        if (error) {
-          console.error("Error removing vote:", error);
-          throw error;
-        }
-        
-        // Update upvote count in feature_requests table
-        const { error: updateError } = await supabase
-          .from("feature_requests")
-          .update({ upvotes: supabase.rpc('decrement', { row_id: requestId }) })
-          .eq("id", requestId);
-          
-        if (updateError) {
-          console.error("Error updating upvote count:", updateError);
-          throw updateError;
-        }
-      } else {
-        // Add vote
-        const { error } = await supabase
-          .from("feature_request_votes")
-          .insert({
-            feature_request_id: requestId,
-            user_id: user.id
-          });
-          
-        if (error) {
-          console.error("Error adding vote:", error);
-          throw error;
-        }
-        
-        // Update upvote count in feature_requests table
-        const { error: updateError } = await supabase
-          .from("feature_requests")
-          .update({ upvotes: supabase.rpc('increment', { row_id: requestId }) })
-          .eq("id", requestId);
-          
-        if (updateError) {
-          console.error("Error updating upvote count:", updateError);
-          throw updateError;
-        }
+      // Fix the RPC call syntax
+      const { error: voteError, data: voteResult } = await supabase
+        .rpc('vote_for_feature_request', {
+          p_feature_request_id: requestId,
+        });
+      
+      if (voteError) {
+        console.error("Error voting:", voteError);
+        throw voteError;
       }
       
-      // Toggle vote state in UI
+      // Toggle vote state in UI - data will be true if vote was added, false if removed
       setFeatureRequests(prev => 
         prev.map(request => 
           request.id === requestId 
             ? { 
                 ...request, 
-                upvotes: hasVoted ? request.upvotes - 1 : request.upvotes + 1,
-                has_user_upvoted: !hasVoted
+                upvotes: voteResult ? request.upvotes + 1 : request.upvotes - 1,
+                has_user_upvoted: voteResult
               } 
             : request
         )
       );
       
-      toast.success(hasVoted ? "Vote removed" : "Vote added");
+      toast.success(voteResult ? "Vote added" : "Vote removed");
     } catch (error) {
       console.error("Error voting:", error);
-      toast.error("Failed to process your vote");
+      // Check if error is a PostgrestError and has a message
+      const errorMessage = typeof error === 'object' && error !== null && 'message' in error
+        ? (error as any).message
+        : 'An unknown error occurred while voting.';
+      toast({
+        title: "Error Voting",
+        description: errorMessage,
+        duration: 5000
+      });
+    } finally {
+      setVotingId(null);
     }
   };
   
@@ -296,7 +289,7 @@ export default function ChangelogPage() {
           user_id: user.id,
           status: 'Submitted', // Use the enum value from the database
           is_public: true,
-          upvotes: 1 // Start with 1 upvote (the user's own)
+          upvotes: 0 // Start with 0, the vote will be added by RPC
         })
         .select()
         .single();
@@ -306,16 +299,12 @@ export default function ChangelogPage() {
         throw error;
       }
       
-      // Also insert the user's vote for their own feature request
-      const { error: voteError } = await supabase
-        .from("feature_request_votes")
-        .insert({
-          feature_request_id: newFeatureRequest.id,
-          user_id: user.id
-        });
+      // Add the creator's vote using our new RPC function
+      const { data: voteResult, error: voteError } = await supabase
+        .rpc('vote_for_feature_request', { feature_request_id: newFeatureRequest.id });
       
       if (voteError) {
-        console.error("Error inserting vote:", voteError);
+        console.error("Error voting for feature request:", voteError);
         // Don't throw here, as the feature request was still created
       }
       
@@ -327,7 +316,7 @@ export default function ChangelogPage() {
         created_at: newFeatureRequest.created_at,
         user_id: newFeatureRequest.user_id,
         status: newFeatureRequest.status.toLowerCase(),
-        upvotes: 1,
+        upvotes: voteError ? 0 : 1, // If voting failed, show 0, otherwise 1
         comments_count: 0,
         user: {
           id: user.id,
@@ -337,7 +326,7 @@ export default function ChangelogPage() {
           avatar_url: userProfile?.avatar_url,
           subscription_tier: userProfile?.subscription_tier || "free"
         },
-        has_user_upvoted: true
+        has_user_upvoted: !voteError // Should be true unless vote failed
       };
       
       // Add the new request to the state
@@ -389,6 +378,165 @@ export default function ChangelogPage() {
         return <Badge variant="outline" className="bg-red-100 text-red-800">Not Planned</Badge>;
       default:
         return null;
+    }
+  };
+  
+  const fetchComments = async (requestId: string) => {
+    try {
+      setLoadingComments(true);
+      const supabase = createClient();
+      
+      // First, check if we already have comments for this request
+      const existingRequest = featureRequests.find(req => req.id === requestId);
+      if (existingRequest?.comments) {
+        // Comments already loaded
+        return;
+      }
+      
+      // Fetch comments for this request
+      const { data: comments, error } = await supabase
+        .from("feature_request_comments")
+        .select(`
+          id, 
+          created_at, 
+          content, 
+          user_id, 
+          is_internal,
+          profiles:user_id (
+            email,
+            first_name,
+            last_name,
+            avatar_url,
+            subscription_tier
+          )
+        `)
+        .eq("feature_request_id", requestId)
+        .eq("is_internal", false) // Only show public comments
+        .order("created_at", { ascending: true });
+      
+      if (error) {
+        console.error("Error fetching comments:", error);
+        throw error;
+      }
+      
+      // Format the comments and add them to the request
+      const formattedComments = comments.map((comment: any) => ({
+        id: comment.id,
+        created_at: comment.created_at,
+        user_id: comment.user_id,
+        content: comment.content,
+        is_internal: comment.is_internal,
+        user: comment.profiles
+      }));
+      
+      // Update the feature request with comments AND count
+      setFeatureRequests(prev => 
+        prev.map(request => 
+          request.id === requestId 
+            ? { ...request, comments: formattedComments, comments_count: formattedComments.length } // Update count here
+            : request
+        )
+      );
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+      toast.error("Failed to load comments");
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+  
+  const handleAddComment = async (requestId: string) => {
+    if (!commentText.trim()) {
+      toast.error("Please enter a comment");
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      const supabase = createClient();
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error("You must be logged in to comment");
+        return;
+      }
+      
+      // Insert the comment
+      const { data: newComment, error } = await supabase
+        .from("feature_request_comments")
+        .insert({
+          feature_request_id: requestId,
+          user_id: user.id,
+          content: commentText,
+          is_internal: false // Always false for user comments
+        })
+        .select(`
+          id, 
+          created_at, 
+          content, 
+          user_id, 
+          is_internal,
+          profiles:user_id (
+            email,
+            first_name,
+            last_name,
+            avatar_url,
+            subscription_tier
+          )
+        `)
+        .single();
+      
+      if (error) {
+        console.error("Error adding comment:", error);
+        throw error;
+      }
+      
+      // Format the new comment
+      const formattedComment = {
+        id: newComment.id,
+        created_at: newComment.created_at,
+        user_id: newComment.user_id,
+        content: newComment.content,
+        is_internal: newComment.is_internal,
+        user: newComment.profiles
+      };
+      
+      // Add the comment to the request
+      setFeatureRequests(prev => 
+        prev.map(request => 
+          request.id === requestId 
+            ? { 
+                ...request, 
+                comments: [...(request.comments || []), formattedComment],
+                comments_count: (request.comments_count || 0) + 1
+              } 
+            : request
+        )
+      );
+      
+      // Reset the comment text
+      setCommentText("");
+      toast.success("Comment added");
+      
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      toast.error("Failed to add comment");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  const toggleComments = async (requestId: string) => {
+    if (expandedCommentId === requestId) {
+      // Close the comments section
+      setExpandedCommentId(null);
+    } else {
+      // Open the comments section
+      setExpandedCommentId(requestId);
+      // Fetch comments if not already loaded
+      await fetchComments(requestId);
     }
   };
   
@@ -602,11 +750,83 @@ export default function ChangelogPage() {
                       </span>
                     </div>
                   </CardContent>
-                  <CardFooter className="pt-0">
-                    <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                  <CardFooter className="flex flex-col w-full pt-0 gap-3">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-muted-foreground hover:text-foreground self-start"
+                      onClick={() => toggleComments(request.id)}
+                    >
                       <MessageSquare className="h-4 w-4 mr-1" />
                       {request.comments_count} {request.comments_count === 1 ? "Comment" : "Comments"}
                     </Button>
+                    
+                    {expandedCommentId === request.id && (
+                      <div className="w-full border-t pt-3 mt-1">
+                        {loadingComments ? (
+                          <div className="flex justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <>
+                            {request.comments && request.comments.length > 0 ? (
+                              <div className="space-y-4 mb-4">
+                                {request.comments.map(comment => (
+                                  <div key={comment.id} className="flex gap-2">
+                                    <Avatar className="h-6 w-6 mt-0.5">
+                                      <AvatarImage 
+                                        src={comment.user.avatar_url || ""} 
+                                        alt={`${comment.user.first_name} ${comment.user.last_name}`} 
+                                      />
+                                      <AvatarFallback>
+                                        {comment.user.first_name?.[0] || comment.user.email[0].toUpperCase()}
+                                        {comment.user.last_name?.[0] || ""}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium">
+                                          {comment.user.first_name && comment.user.last_name
+                                            ? `${comment.user.first_name} ${comment.user.last_name}`
+                                            : comment.user.email}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {new Date(comment.created_at).toLocaleDateString()}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm mt-1">{comment.content}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center py-4">
+                                <p className="text-sm text-muted-foreground">No comments yet. Be the first to comment!</p>
+                              </div>
+                            )}
+                            
+                            {/* Comment form */}
+                            <div className="flex gap-2 mt-2">
+                              <Textarea 
+                                placeholder="Add a comment..." 
+                                value={commentText}
+                                onChange={(e) => setCommentText(e.target.value)}
+                                className="flex-1 h-20 resize-none"
+                              />
+                              <Button 
+                                onClick={() => handleAddComment(request.id)}
+                                disabled={submitting || !commentText.trim()}
+                                className="self-start"
+                              >
+                                {submitting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : "Post"}
+                              </Button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </CardFooter>
                 </Card>
               ))}

@@ -9,11 +9,14 @@ const REDIRECT_URI = process.env.NEXT_PUBLIC_URL ? `${process.env.NEXT_PUBLIC_UR
 // Google OAuth scopes for Search Console
 const SCOPES = [
   'https://www.googleapis.com/auth/webmasters',
-  'https://www.googleapis.com/auth/webmasters.readonly'
+  'https://www.googleapis.com/auth/webmasters.readonly',
+  'openid',
+  'email',
+  'profile'
 ]
 
 /**
- * Generate the Google OAuth URL
+ * Generate the Google OAuth URL for user-level connection
  */
 export async function GET(request: Request) {
   try {
@@ -28,17 +31,6 @@ export async function GET(request: Request) {
       )
     }
     
-    // Get the project ID from the query parameters
-    const { searchParams } = new URL(request.url)
-    const projectId = searchParams.get('projectId')
-    
-    if (!projectId) {
-      return NextResponse.json(
-        { error: 'Project ID is required' },
-        { status: 400 }
-      )
-    }
-    
     // Check if Google OAuth is configured
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
       return NextResponse.json(
@@ -47,9 +39,8 @@ export async function GET(request: Request) {
       )
     }
     
-    // Generate a random state to prevent CSRF
+    // Generate state containing only the user ID
     const state = Buffer.from(JSON.stringify({
-      projectId,
       userId: session.user.id
     })).toString('base64')
     

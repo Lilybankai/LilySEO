@@ -28,7 +28,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { checkWhiteLabelAccess } from "@/services/white-label"
-import { Toaster } from "@/components/ui/toaster"
 import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown"
 import { ProfileDropdown } from "@/components/profile/profile-dropdown"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
@@ -242,17 +241,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="p-4 border-t">
             <div className="space-y-2">
               <Link
-                href="/dashboard/subscription"
-                className={`flex items-center px-4 py-2 text-sm rounded-md ${
-                  pathname === "/dashboard/subscription"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-foreground hover:bg-muted"
-                }`}
-              >
-                <CreditCard className="mr-3 h-5 w-5" />
-                Subscription
-              </Link>
-              <Link
                 href="/dashboard/white-label?debug=true"
                 className={`flex items-center px-4 py-2 text-sm rounded-md ${
                   pathname === "/dashboard/white-label"
@@ -275,9 +263,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 )}
               </Link>
               <Link
-                href="/settings"
+                href="/dashboard/settings"
                 className={`flex items-center px-4 py-2 text-sm rounded-md ${
-                  pathname === "/settings"
+                  pathname === "/dashboard/settings"
                     ? "bg-primary text-primary-foreground"
                     : "text-foreground hover:bg-muted"
                 }`}
@@ -312,9 +300,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         
         {/* Page content */}
         <main className="flex-1 p-4 md:p-6">{children}</main>
-        
-        {/* Toast notifications */}
-        <Toaster />
       </div>
     </div>
   )

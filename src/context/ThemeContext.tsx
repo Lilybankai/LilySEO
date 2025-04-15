@@ -40,8 +40,9 @@ interface ThemeContextType {
 const defaultTheme: PdfTheme = {
   primaryColor: 'hsl(220 70% 50%)', // From theme guide
   secondaryColor: '#4b5563',
-  fontFamily: 'Poppins', // Changed from 'Poppins, Montserrat, sans-serif' to a single font
+  fontFamily: 'Helvetica', // Changed from 'Poppins, Montserrat, sans-serif' to a single font
   companyName: 'LilySEO',
+  logoUrl: undefined,
   contactInfo: 'support@lilyseo.com',
   footerText: `© ${new Date().getFullYear()} LilySEO. All rights reserved.`,
   // Default customization options
