@@ -1,0 +1,4 @@
+/* Import the compiled Tailwind CSS */
+@import './tailwind-output.css';
+
+/* Any additional CSS can go here */ 
