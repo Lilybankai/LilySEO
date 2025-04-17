@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
@@ -13,27 +13,36 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Check, Clock, MoreHorizontal, Calendar, FileText, CheckCircle, XCircle, AlertTriangle, AlarmClock } from 'lucide-react';
 import { format } from 'date-fns';
 import { getTeamMembers } from '@/services/team-management';
-import { getTodosByAssignee, getTodosAssignedByMe, getTodosAssignedToMe } from '@/services/todo-assignments';
+import { getTodosByAssignee, getTodosAssignedByMe, getTodosAssignedToMe, getUnassignedTeamTasks } from '@/services/todo-assignments';
 import { updateTodoStatus, reassignTodo, completeTodo, startTodo, resetTodo } from '@/services/todo-status';
 import { TeamMember } from '@/types/todos';
 import { toast } from 'sonner';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TodoViewModal } from '@/components/todos/modals/TodoViewModal';
 
 interface Todo {
   id: string;
   title: string;
-  description?: string;
+  description?: string | null;
   status: string;
   priority: string;
-  due_date?: string;
-  assigned_to?: string;
+  due_date?: string | Date | null;
+  assigned_to?: string | null;
   user_id: string;
   project_id: string;
-  created_at: string;
-  updated_at: string;
+  created_at: string | Date;
+  updated_at: string | Date;
   projects?: {
     id: string;
     name: string;
-  };
+  } | null;
+  assigneeProfile?: {
+    id: string;
+    full_name?: string | null;
+    avatar_url?: string | null;
+    email?: string | null;
+  } | null;
 }
 
 interface TaskActionMenuProps {
@@ -47,35 +56,45 @@ export function TeamTasksPage() {
   const [assignedTasks, setAssignedTasks] = useState<Record<string, Todo[]>>({});
   const [myAssignedTasks, setMyAssignedTasks] = useState<Todo[]>([]);
   const [tasksAssignedByMe, setTasksAssignedByMe] = useState<Todo[]>([]);
+  const [unassignedTasks, setUnassignedTasks] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
+
+  // State for modals
+  const [viewingTodoId, setViewingTodoId] = useState<string | null>(null);
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
 
   // Function to load team data
   const loadTeamData = async () => {
     try {
       setLoading(true);
       
-      // Get team members
-      const members = await getTeamMembers();
+      // Fetch members, assigned by me, assigned to me (parallel)
+      const [members, assignedByMe, assignedToMe, unassigned] = await Promise.all([
+        getTeamMembers(),
+        getTodosAssignedByMe(),
+        getTodosAssignedToMe(),
+        getUnassignedTeamTasks()
+      ]);
+      
       setTeamMembers(members);
-      
-      // Get tasks assigned by the current user
-      const assignedByMe = await getTodosAssignedByMe();
       setTasksAssignedByMe(assignedByMe);
-      
-      // Get tasks assigned to the current user
-      const assignedToMe = await getTodosAssignedToMe();
       setMyAssignedTasks(assignedToMe);
+      setUnassignedTasks(unassigned);
       
-      // Get tasks for each team member
+      // Fetch tasks for each team member (can still be parallelized further if needed)
+      const memberTasksPromises = members
+        .filter(member => member.userId)
+        .map(member => getTodosByAssignee(member.userId!));
+      
+      const memberTasksResults = await Promise.all(memberTasksPromises);
+      
       const memberTasks: Record<string, Todo[]> = {};
-      
-      for (const member of members) {
+      members.forEach((member, index) => {
         if (member.userId) {
-          const tasks = await getTodosByAssignee(member.userId);
-          memberTasks[member.userId] = tasks;
+          memberTasks[member.userId] = memberTasksResults[index];
         }
-      }
+      });
       
       setAssignedTasks(memberTasks);
     } catch (error) {
@@ -126,10 +145,12 @@ export function TeamTasksPage() {
   };
 
   // Format a date for display
-  const formatDate = (dateString?: string) => {
+  const formatDate = (dateString?: string | Date | null) => {
     if (!dateString) return 'No date';
     try {
-      return format(new Date(dateString), 'MMM d, yyyy');
+      // Ensure it's a Date object before formatting
+      const dateToFormat = typeof dateString === 'string' ? new Date(dateString) : dateString;
+      return format(dateToFormat, 'MMM d, yyyy');
     } catch (error) {
       return 'Invalid date';
     }
@@ -153,21 +174,21 @@ export function TeamTasksPage() {
     }
   };
 
-  // Function to handle task reassignment
-  const handleReassign = async (todoId: string, newAssigneeId: string) => {
+  // Function to handle task reassignment - Ensure signature accepts null
+  const handleReassign = async (todoId: string, newAssigneeId: string | null) => {
     try {
+      // Ensure reassignTodo service function can handle null
       const result = await reassignTodo(todoId, newAssigneeId);
       
       if (result.success) {
-        toast.success('Task reassigned successfully');
-        // Refresh the data
-        await loadTeamData();
+        toast.success(newAssigneeId ? 'Task reassigned successfully' : 'Task unassigned successfully');
+        await loadTeamData(); // Refresh data on success
       } else {
-        toast.error(result.error || 'Failed to reassign task');
+        toast.error(result.error || 'Failed to update assignment');
       }
     } catch (error) {
-      console.error('Error reassigning task:', error);
-      toast.error('Failed to reassign task');
+      console.error('Error updating assignment:', error);
+      toast.error('Failed to update assignment');
     }
   };
 
@@ -176,7 +197,7 @@ export function TeamTasksPage() {
     loadTeamData();
   }, []);
 
-  // Updated task action menu
+  // Updated task action menu to trigger modals
   const TaskActionMenu = ({ task, showReassign = false }: TaskActionMenuProps) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -185,16 +206,15 @@ export function TeamTasksPage() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link href={`/todos/${task.id}`}>
-            View Details
-          </Link>
+        {/* Trigger View Modal */}
+        <DropdownMenuItem onSelect={() => setViewingTodoId(task.id)}>
+          View Details
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/todos/${task.id}/edit`}>
-            Edit Task
-          </Link>
+        {/* Trigger Edit Modal */}
+        <DropdownMenuItem onSelect={() => setEditingTodoId(task.id)}>
+          Edit Task
         </DropdownMenuItem>
+        {/* Existing Status Updates */}
         <DropdownMenuItem onClick={() => handleStatusUpdate(task.id, 'completed')}>
           Mark as Completed
         </DropdownMenuItem>
@@ -204,33 +224,116 @@ export function TeamTasksPage() {
         <DropdownMenuItem onClick={() => handleStatusUpdate(task.id, 'todo')}>
           Reset to To-Do
         </DropdownMenuItem>
-        {showReassign && (
-          <DropdownMenuItem>
+        {/* Assign/Reassign Select */}
+        {(showReassign || !task.assigned_to) && (
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()} >
             <div className="w-full">
-              <select
-                className="w-full bg-transparent"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleReassign(task.id, e.target.value);
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                value=""
+              <Label className="text-xs text-muted-foreground mb-1 block">Assign/Reassign</Label>
+              <Select 
+                 onValueChange={(selectedValue: string) => {
+                   const assigneeIdToSend = selectedValue === "UNASSIGNED" ? null : selectedValue;
+                   handleReassign(task.id, assigneeIdToSend);
+                 }}
+                 value={task.assigned_to || "UNASSIGNED"}
               >
-                <option value="">Reassign to...</option>
-                {teamMembers.map((member) => (
-                  member.userId !== task.assigned_to && (
-                    <option key={member.userId} value={member.userId}>
-                      {member.name || member.email}
-                    </option>
-                  )
-                ))}
-              </select>
+                <SelectTrigger className="w-full h-8 text-xs">
+                  <SelectValue placeholder="Select member..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UNASSIGNED">Unassigned</SelectItem> 
+                  {teamMembers.map((member) => (
+                    member.userId && (
+                       <SelectItem key={member.userId} value={member.userId}>
+                         {member.name || member.email}
+                       </SelectItem>
+                    )
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+
+  // Helper to render a list of tasks
+  const renderTaskList = (tasks: Todo[], showAssignee: boolean = false, listTitle?: string) => (
+    <Card className="mb-4">
+      {listTitle && (
+         <CardHeader className="pb-2 pt-4">
+           <CardTitle className="text-lg">{listTitle}</CardTitle>
+         </CardHeader>
+      )}
+      <CardContent className={`space-y-3 ${listTitle ? 'pt-2 pb-4' : 'py-4'}`}>
+        {tasks.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No tasks here.</p>
+        ) : (
+          tasks.map((task) => {
+             // Find assignee details (you might want to pre-process this)
+             const assignee = teamMembers.find(m => m.userId === task.assigned_to);
+             return (
+              <div key={task.id} className="flex items-center justify-between gap-4 p-3 border rounded-md hover:bg-muted/50">
+                <div className="flex-grow min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                     <span className="font-medium truncate text-sm" title={task.title}>{task.title}</span> 
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                     {getStatusBadge(task.status)}
+                     {getPriorityBadge(task.priority)}
+                     {task.due_date && (
+                       <TooltipProvider delayDuration={100}>
+                         <Tooltip>
+                           <TooltipTrigger>
+                             <Badge variant="outline" className="flex items-center gap-1">
+                               <Calendar className="h-3 w-3" />
+                               {formatDate(task.due_date)}
+                             </Badge>
+                           </TooltipTrigger>
+                           <TooltipContent>Due Date</TooltipContent>
+                         </Tooltip>
+                       </TooltipProvider>
+                     )}
+                     {task.projects && (
+                       <TooltipProvider delayDuration={100}>
+                         <Tooltip>
+                           <TooltipTrigger>
+                             <Badge variant="secondary" className="flex items-center gap-1">
+                               {task.projects.name}
+                             </Badge>
+                           </TooltipTrigger>
+                           <TooltipContent>Project</TooltipContent>
+                         </Tooltip>
+                       </TooltipProvider>
+                     )}
+                     {showAssignee && assignee && (
+                       <TooltipProvider delayDuration={100}>
+                         <Tooltip>
+                           <TooltipTrigger>
+                             <Badge variant="outline" className="flex items-center gap-1">
+                               <Avatar className="h-4 w-4 text-xs">
+                                 <AvatarFallback className="text-[8px]">
+                                    {getInitials(assignee.name || assignee.email || '??')}
+                                  </AvatarFallback>
+                               </Avatar>
+                               {assignee.name || assignee.email}
+                             </Badge>
+                           </TooltipTrigger>
+                           <TooltipContent>Assigned To</TooltipContent>
+                         </Tooltip>
+                       </TooltipProvider>
+                     )}
+                   </div>
+                 </div>
+                 <div className="flex-shrink-0">
+                   <TaskActionMenu task={task} showReassign={true} />
+                 </div>
+               </div>
+             );
+           })
+        )}
+      </CardContent>
+    </Card>
   );
 
   return (
@@ -259,301 +362,96 @@ export function TeamTasksPage() {
         </div>
       </div>
       
-      <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-3 mb-8">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 mb-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="assigned-to-me">Assigned to Me</TabsTrigger>
-          <TabsTrigger value="assigned-by-me">Assigned by Me</TabsTrigger>
+          {teamMembers
+            .filter(member => typeof member.userId === 'string') 
+            .map((member) => (
+              <TabsTrigger 
+                key={member.userId!} 
+                value={member.userId!} 
+                onClick={() => setSelectedMember(member.userId!)} 
+              >
+                {member.name || member.email}
+              </TabsTrigger>
+          ))}
         </TabsList>
         
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview">
           {loading ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <Card key={i}>
-                  <CardHeader>
-                    <div className="flex items-center gap-4">
-                      <Skeleton className="h-12 w-12 rounded-full" />
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-40" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-full" />
-                      <Skeleton className="h-3 w-3/4" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <Skeleton className="h-64 w-full" />
           ) : (
-            teamMembers.length > 0 ? (
-              <div className="space-y-6">
-                {teamMembers.map((member) => {
-                  const memberTasks = member.userId ? assignedTasks[member.userId] || [] : [];
-                  const completedTasks = memberTasks.filter(task => task.status.toLowerCase() === 'completed');
-                  const progressTasks = memberTasks.filter(task => task.status.toLowerCase() === 'in_progress');
-                  const todoTasks = memberTasks.filter(task => task.status.toLowerCase() === 'todo');
-                  
-                  return (
-                    <Card key={member.id}>
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <Avatar>
-                              <AvatarFallback>{getInitials(member.name || member.email.split('@')[0])}</AvatarFallback>
-                            </Avatar>
-                            
-                            <div>
-                              <CardTitle>{member.name || member.email.split('@')[0]}</CardTitle>
-                              <CardDescription>{member.email}</CardDescription>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-1.5">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <div className="flex items-center text-sm text-muted-foreground">
-                                      <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
-                                      <span>{completedTasks.length}</span>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Completed tasks</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <div className="flex items-center text-sm text-muted-foreground">
-                                      <Clock className="h-4 w-4 text-blue-500 mr-1" />
-                                      <span>{progressTasks.length}</span>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>In-progress tasks</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <div className="flex items-center text-sm text-muted-foreground">
-                                      <AlertTriangle className="h-4 w-4 text-orange-500 mr-1" />
-                                      <span>{todoTasks.length}</span>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>To-do tasks</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </div>
-                            
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => setSelectedMember(selectedMember === member.userId ? null : member.userId || null)}
-                            >
-                              {selectedMember === member.userId ? 'Hide Tasks' : 'View Tasks'}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      
-                      {selectedMember === member.userId && (
-                        <CardContent>
-                          {memberTasks.length > 0 ? (
-                            <div className="space-y-3 mt-2">
-                              {memberTasks.map((task) => (
-                                <div key={task.id} className="flex items-center justify-between p-3 border rounded-md">
-                                  <div className="space-y-1">
-                                    <div className="font-medium">{task.title}</div>
-                                    <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                      <span>{task.projects?.name}</span>
-                                      •
-                                      {task.due_date && (
-                                        <>
-                                          <Calendar className="h-3 w-3" />
-                                          <span>{formatDate(task.due_date)}</span>
-                                          •
-                                        </>
-                                      )}
-                                      <span>Updated {formatDate(task.updated_at)}</span>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-2">
-                                    {getStatusBadge(task.status)}
-                                    {getPriorityBadge(task.priority)}
-                                    <TaskActionMenu task={task} showReassign={true} />
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="py-8 text-center text-muted-foreground">
-                              <p>No tasks assigned to this team member</p>
-                            </div>
-                          )}
-                        </CardContent>
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-10 text-center">
-                  <div className="space-y-3">
-                    <p className="text-muted-foreground">No team members found.</p>
-                    <Button asChild>
-                      <Link href="/team">Manage Team Members</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+               <div>
+                 {renderTaskList(unassignedTasks, false, "Unassigned Tasks")}
+               </div>
+               <div>
+                  <Card>
+                     <CardHeader>
+                        <CardTitle className="text-lg">Tasks Assigned to Team</CardTitle>
+                     </CardHeader>
+                     <CardContent className="space-y-3 pt-2 pb-4">
+                      {teamMembers.length === 0 ? (
+                         <p className="text-sm text-muted-foreground text-center py-4">No team members found.</p>
+                      ) : (
+                         teamMembers.map(member => (
+                            assignedTasks[member.userId!] && assignedTasks[member.userId!].length > 0 && (
+                              <div key={member.userId} className="mb-4 last:mb-0">
+                                <h3 className="font-semibold text-md mb-2 flex items-center gap-2">
+                                   <Avatar className="h-6 w-6 text-xs">
+                                     <AvatarFallback className="text-[10px]">
+                                       {getInitials(member.name || member.email || '??')}
+                                     </AvatarFallback>
+                                   </Avatar>
+                                   {member.name || member.email}
+                                </h3>
+                                {renderTaskList(assignedTasks[member.userId!])}
+                              </div>
+                            )
+                         ))
+                       )}
+                       {teamMembers.every(m => !assignedTasks[m.userId!] || assignedTasks[m.userId!].length === 0) && teamMembers.length > 0 && (
+                         <p className="text-sm text-muted-foreground text-center py-4">No tasks currently assigned to team members.</p>
+                       )}
+                     </CardContent>
+                  </Card>
+               </div>
+            </div>
           )}
         </TabsContent>
-        
-        {/* Assigned to Me Tab */}
-        <TabsContent value="assigned-to-me" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Tasks Assigned to Me</CardTitle>
-              <CardDescription>
-                All tasks that have been assigned to you by team members
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
+
+        {/* Individual Member Tabs (optional, can be removed) */} 
+        {teamMembers
+          .filter(member => typeof member.userId === 'string')
+          .map((member) => (
+            <TabsContent key={`${member.userId!}-content`} value={member.userId!}>
               {loading ? (
-                <div className="space-y-3">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 border rounded-md">
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-40" />
-                        <Skeleton className="h-3 w-60" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Skeleton className="h-6 w-16 rounded-md" />
-                        <Skeleton className="h-6 w-16 rounded-md" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : myAssignedTasks.length > 0 ? (
-                <div className="space-y-3">
-                  {myAssignedTasks.map((task) => (
-                    <div key={task.id} className="flex items-center justify-between p-3 border rounded-md">
-                      <div className="space-y-1">
-                        <div className="font-medium">{task.title}</div>
-                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                          <span>{task.projects?.name}</span>
-                          •
-                          {task.due_date && (
-                            <>
-                              <Calendar className="h-3 w-3" />
-                              <span>{formatDate(task.due_date)}</span>
-                              •
-                            </>
-                          )}
-                          <span>Updated {formatDate(task.updated_at)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(task.status)}
-                        {getPriorityBadge(task.priority)}
-                        <TaskActionMenu task={task} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Skeleton className="h-64 w-full" />
               ) : (
-                <div className="py-8 text-center text-muted-foreground">
-                  <p>No tasks have been assigned to you</p>
-                </div>
+                renderTaskList(assignedTasks[member.userId!] || [], false, `Tasks for ${member.name || member.email}`)
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Assigned by Me Tab */}
-        <TabsContent value="assigned-by-me" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Tasks Assigned by Me</CardTitle>
-              <CardDescription>
-                All tasks that you have assigned to team members
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-              {loading ? (
-                <div className="space-y-3">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 border rounded-md">
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-40" />
-                        <Skeleton className="h-3 w-60" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Skeleton className="h-6 w-16 rounded-md" />
-                        <Skeleton className="h-6 w-16 rounded-md" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : tasksAssignedByMe.length > 0 ? (
-                <div className="space-y-3">
-                  {tasksAssignedByMe.map((task) => (
-                    <div key={task.id} className="flex items-center justify-between p-3 border rounded-md">
-                      <div className="space-y-1">
-                        <div className="font-medium">{task.title}</div>
-                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                          <span>{task.projects?.name}</span>
-                          •
-                          {task.due_date && (
-                            <>
-                              <Calendar className="h-3 w-3" />
-                              <span>{formatDate(task.due_date)}</span>
-                              •
-                            </>
-                          )}
-                          <AlarmClock className="h-3 w-3" />
-                          <span>Updated {formatDate(task.updated_at)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(task.status)}
-                        {getPriorityBadge(task.priority)}
-                        <TaskActionMenu task={task} showReassign={true} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-8 text-center text-muted-foreground">
-                  <p>You haven't assigned any tasks to team members</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
+        ))}
+
       </Tabs>
+
+      {/* Render the unified View/Edit Modal */}
+      <TodoViewModal 
+        todoId={viewingTodoId || editingTodoId} // Pass either ID
+        isOpen={!!viewingTodoId || !!editingTodoId} // Open if either ID is set
+        onClose={() => {
+          setViewingTodoId(null);
+          setEditingTodoId(null);
+        }}
+        onSave={() => {
+          // onSave callback from TodoViewModal might not be strictly needed here
+          // since it already refreshes data internally. But we can keep it for consistency
+          // or potentially remove it if the parent doesn't need further action.
+          loadTeamData(); // Refresh data in the parent component as well
+        }}
+      />
     </div>
   );
 } 

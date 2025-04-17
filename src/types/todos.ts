@@ -2,49 +2,55 @@
 export interface Todo {
   id: string;
   title: string;
-  description?: string;
+  description?: string | null;
+  notes?: string | null;
   status: TodoStatus;
   customStatus?: string;
   priority: TodoPriority;
   projectId: string;
   auditId?: string;
   userId: string;
-  assignedTo?: string;
-  dueDate?: Date | string;
+  assignedTo?: string | null;
+  dueDate?: Date | string | null;
   scheduledFor?: Date | string;
   timeSpent: number; // in seconds
   timeTrackedAt?: Date | string;
   aiRecommendations?: AiRecommendation[];
   createdAt: Date | string;
   updatedAt: Date | string;
+
+  projects?: { 
+    id: string;
+    name: string;
+  } | null;
+  
+  assigneeProfile?: {
+    id: string;
+    full_name?: string | null;
+    email?: string | null;
+  } | null;
 }
 
 // Todo status enum
-export type TodoStatus = 'pending' | 'in_progress' | 'review' | 'completed' | 'cancelled';
+export type TodoStatus = 'todo' | 'in_progress' | 'review' | 'completed' | string;
 
 // Todo priority enum
-export type TodoPriority = 'low' | 'medium' | 'high' | 'critical';
+export type TodoPriority = 'low' | 'medium' | 'high' | string;
 
 // Team member type
 export interface TeamMember {
   id: string;
   teamOwnerId: string;
-  userId: string;
+  userId?: string;
   email: string;
-  name: string;
-  permissions: TeamMemberPermission;
-  status: TeamMemberStatus;
-  inviteToken?: string;
-  inviteExpiresAt?: Date | string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
+  name?: string | null;
+  permissions: 'admin' | 'member' | 'viewer';
+  status: 'active' | 'pending' | 'inactive';
+  invite_token?: string | null;
+  invite_expires_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
-
-// Team member permission enum
-export type TeamMemberPermission = 'admin' | 'member' | 'viewer';
-
-// Team member status enum
-export type TeamMemberStatus = 'pending' | 'active' | 'inactive';
 
 // Custom kanban column/status
 export interface CustomStatus {
@@ -73,13 +79,7 @@ export interface TodoMetrics {
 
 // AI recommendation for a todo
 export interface AiRecommendation {
-  id: string;
-  type: string; // 'title', 'description', 'meta', etc.
-  originalValue: string;
-  recommendedValue: string;
-  reasonForRecommendation: string;
-  applied: boolean;
-  appliedAt?: Date | string;
+  [key: string]: any;
 }
 
 // Kanban column type

@@ -18,20 +18,30 @@ export async function GET(
       );
     }
 
-    // First check if the project belongs to the user
-    const { data: project } = await supabase
+    // Get project and user profile to check ownership and get tier
+    const { data: projectData, error: projectError } = await supabase
       .from('projects')
-      .select('id, user_id, subscription_tier')
+      .select(`
+        id,
+        user_id,
+        profiles ( subscription_tier )
+      `)
       .eq('id', params.id)
       .eq('user_id', session.session.user.id)
       .single();
 
-    if (!project) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Project not found or unauthorized' }),
-        { status: 404 }
-      );
+    if (projectError || !projectData) {
+      // Handle error or not found...
+      const status = projectError?.code === 'PGRST116' ? 404 : 500;
+      const message = status === 404 ? 'Project not found or unauthorized' : 'Database error fetching project';
+      if (projectError) console.error('Error fetching project/profile:', projectError);
+      return new NextResponse(JSON.stringify({ error: message }), { status });
     }
+    
+    // Extract user tier, default to 'free'
+    const profileInfo = Array.isArray(projectData.profiles) ? projectData.profiles[0] : projectData.profiles;
+    const userTier = profileInfo?.subscription_tier ?? 'free';
+    console.log(`User tier for project ${params.id}: ${userTier}`);
 
     // Check if the competitor belongs to the project
     const { data: competitor } = await supabase
@@ -51,29 +61,35 @@ export async function GET(
     // Extract query parameters - support 'days' parameter
     const url = new URL(request.url);
     const daysParam = url.searchParams.get('days');
-    const days = daysParam ? parseInt(daysParam, 10) : 30;
+    const requestedDays = daysParam ? parseInt(daysParam, 10) : 30;
 
     // Validate days parameter
-    if (isNaN(days) || days <= 0) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Invalid days parameter. Must be a positive number.' }),
-        { status: 400 }
-      );
+    if (isNaN(requestedDays) || requestedDays <= 0) {
+      return new NextResponse(JSON.stringify({ error: 'Invalid days parameter. Must be a positive number.' }), { status: 400 });
     }
 
-    // Determine maximum days based on subscription tier
-    let maxDays = 1; // Default for free tier
-    if (project.subscription_tier === 'enterprise') {
-      maxDays = 365; // 12 months for enterprise
-    } else if (project.subscription_tier === 'pro') {
-      maxDays = 30; // 30 days for pro
-    }
+    // Fetch maximum history days allowed for the tier
+    const { data: limitData, error: limitError } = await supabase
+      .from('usage_limits')
+      .select('monthly_limit')
+      .eq('plan_type', userTier)
+      .eq('feature_name', 'competitor_history_days')
+      .single();
 
-    // Limit days to maximum allowed
-    const effectiveDays = Math.min(days, maxDays);
+    let maxDays = 1; // Default limit (free tier)
+    if (limitError) {
+        console.error(`Error fetching competitor_history_days limit for tier ${userTier}, using default:`, limitError);
+    } else if (limitData) {
+        // Use fetched limit, treat -1 as effectively infinite for comparison, but cap at a high number like 365 for practicality
+        maxDays = limitData.monthly_limit === -1 ? 365 : limitData.monthly_limit;
+    }
+    console.log(`Max history days for tier ${userTier}: ${maxDays}`);
+
+    // Limit requested days to maximum allowed by tier
+    const effectiveDays = Math.min(requestedDays, maxDays);
 
     // Use the database function to retrieve history with tier-based limitations
-    const { data: history, error } = await supabase.rpc(
+    const { data: history, error: historyError } = await supabase.rpc(
       'get_competitor_history',
       {
         p_competitor_id: params.competitorId,
@@ -81,12 +97,9 @@ export async function GET(
       }
     );
 
-    if (error) {
-      console.error('Error fetching competitor history:', error);
-      return new NextResponse(
-        JSON.stringify({ error: 'Error fetching competitor history' }),
-        { status: 500 }
-      );
+    if (historyError) {
+      console.error('Error fetching competitor history:', historyError);
+      return new NextResponse(JSON.stringify({ error: 'Error fetching competitor history' }), { status: 500 });
     }
 
     // Add metadata about the request
@@ -99,10 +112,10 @@ export async function GET(
       },
       history: history || [],
       meta: {
-        requestedDays: days,
+        requestedDays: requestedDays,
         effectiveDays,
         maxDays,
-        tier: project.subscription_tier,
+        tier: userTier,
         count: history?.length || 0
       }
     };

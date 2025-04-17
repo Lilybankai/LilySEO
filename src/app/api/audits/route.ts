@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
         .eq("id", audit.id);
       
       // Call the crawler service to start the audit
-      const crawlerUrl = getCrawlerServiceUrl("/api/audit/start");
+      const crawlerUrl = getCrawlerServiceUrl("/audit/start");
       console.log("Calling crawler service at:", crawlerUrl);
       
       const crawlerPayload = {
@@ -256,18 +256,19 @@ export async function POST(request: NextRequest) {
       
       console.log("Crawler service payload:", JSON.stringify(crawlerPayload));
       
-      const crawlerResponse = await fetch(crawlerUrl, {
+      const response = await fetch(crawlerUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(crawlerPayload),
       });
 
-      console.log("Crawler service response status:", crawlerResponse.status);
+      console.log("Crawler service response status:", response.status);
       
-      if (!crawlerResponse.ok) {
-        const errorData = await crawlerResponse.json().catch(() => ({}));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         console.error("Error starting audit with crawler service:", errorData);
         
         // Update the audit status to failed
@@ -276,7 +277,7 @@ export async function POST(request: NextRequest) {
           .from("audits")
           .update({ 
             status: "failed",
-            error_message: errorData.error || crawlerResponse.statusText
+            error_message: errorData.error || response.statusText
           })
           .eq("id", audit.id);
           

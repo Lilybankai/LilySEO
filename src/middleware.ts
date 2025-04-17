@@ -21,13 +21,45 @@ export async function middleware(request: NextRequest) {
     console.log("Auth cookie preview:", authCookie.substring(0, 20) + "...");
   }
 
+  // Create Supabase client
   const supabase = createMiddlewareClient(request, res)
-
-  // Get the session and log all cookies for debugging
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   
-  if (sessionError) {
-    console.error("Error getting session:", sessionError.message);
+  // Get the session
+  let session = null;
+  
+  try {
+    // Refresh the session
+    const { data, error: sessionError } = await supabase.auth.getSession()
+    session = data.session;
+    
+    // If there's a session, validate and refresh it
+    if (session) {
+      // Get current time in seconds
+      const now = Math.floor(Date.now() / 1000);
+      
+      // Check if the session is about to expire (within 10 minutes)
+      const isAboutToExpire = session.expires_at && (session.expires_at - now < 600);
+      
+      // If the session is about to expire or we want to always refresh,
+      // call refreshSession to extend it
+      if (isAboutToExpire) {
+        console.log("Session about to expire, refreshing...");
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          console.error("Failed to refresh session:", refreshError.message);
+        } else {
+          console.log("Session refreshed successfully");
+        }
+      } else {
+        console.log("Session valid and not expiring soon");
+      }
+    } else if (sessionError) {
+      console.error("Error getting session:", sessionError.message);
+    } else {
+      console.log("No active session found");
+    }
+  } catch (error) {
+    console.error("Error in session handling:", error);
   }
   
   console.log("Session:", session ? `Found (user: ${session.user.email})` : "Not found");

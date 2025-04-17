@@ -39,4 +39,6 @@ export const createClient = () => {
     console.error("❌ Failed to create Supabase client:", error);
     throw error;
   }
-} 
+}
+
+// Checking the file to see how Supabase client is configured 

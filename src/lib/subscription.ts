@@ -1,25 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 
-// Subscription plan limits
-export const SUBSCRIPTION_LIMITS = {
-  FREE: {
-    projects: 3,
-    auditsPerMonth: 10,
-  },
-  PRO: {
-    projects: 15,
-    auditsPerMonth: 50,
-  },
-  BUSINESS: {
-    projects: 25,
-    auditsPerMonth: 200,
-  },
-  ENTERPRISE: {
-    projects: -1, // Unlimited
-    auditsPerMonth: -1, // Unlimited
-  },
-};
-
 // Get user's subscription plan
 export async function getUserSubscriptionPlan(userId: string) {
   const supabase = await createClient();

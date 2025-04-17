@@ -38,12 +38,12 @@ export async function updateTodoStatus(
 /**
  * Reassigns a todo to a different team member
  * @param todoId - The ID of the todo to reassign
- * @param assigneeId - The ID of the team member to assign to
+ * @param assigneeId - The ID of the team member to assign to (or null to unassign)
  * @returns Promise with the updated todo or error
  */
 export async function reassignTodo(
   todoId: string,
-  assigneeId: string
+  assigneeId: string | null
 ): Promise<{ success: boolean; todo?: any; error?: string }> {
   try {
     const response = await fetch('/api/todos/reassign', {

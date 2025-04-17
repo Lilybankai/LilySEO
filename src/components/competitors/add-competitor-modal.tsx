@@ -57,26 +57,45 @@ export function AddCompetitorModal({
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add competitor');
-      }
-      
-      toast({
-        title: "Success",
-        description: "Competitor added successfully"
-      });
-      
-      // Reset form
-      setNewCompetitorUrl('');
-      setNewCompetitorName('');
-      
-      // Close modal
-      onOpenChange(false);
-      
-      // Call success callback if provided
-      if (onSuccess) {
-        onSuccess();
+        // Check if the error is specifically about the limit
+        if (errorData.error && /limit reached|reached your plan's limit/i.test(errorData.error)) {
+          console.log("Competitor limit reached! Trigger upgrade flow here."); // Placeholder for upgrade UI
+          // Show a specific toast for limit reached
+          toast({
+            title: "Competitor Limit Reached",
+            description: errorData.error, // Use the specific message from API
+            variant: "destructive",
+            // Optionally add an action button to upgrade
+            // action: <ToastAction altText="Upgrade">Upgrade Plan</ToastAction>,
+          });
+          // We explicitly do *not* throw an error or close the modal here.
+        } else {
+          // Throw other errors to be caught by the generic handler below
+          throw new Error(errorData.error || 'Failed to add competitor');
+        }
+      } else {
+        // --- Success Case --- 
+        // const successData = await response.json(); // If success returns data
+        toast({
+          title: "Success",
+          description: "Competitor added successfully"
+        });
+        
+        // Reset form
+        setNewCompetitorUrl('');
+        setNewCompetitorName('');
+        
+        // Close modal
+        onOpenChange(false);
+        
+        // Call success callback if provided
+        if (onSuccess) {
+          onSuccess();
+        }
       }
     } catch (err: any) {
+      // This catch block now only handles errors explicitly THROWN above
+      // (i.e., non-limit related fetch/API errors)
       toast({
         title: "Error",
         description: err.message || "Failed to add competitor",

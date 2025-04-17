@@ -108,10 +108,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     
     // Team features
     { name: "Team Management", href: "/team", icon: UserPlus, proAndAbove: true,
-      subItems: [
-        { name: "Team Members", href: "/team", icon: UserPlus },
-        { name: "Task Assignments", href: "/team/assignments", icon: CheckSquare },
-      ]
+      // Remove subItems array
+      // subItems: [
+      //   { name: "Team Members", href: "/team", icon: UserPlus },
+      //   { name: "Task Assignments", href: "/team/assignments", icon: CheckSquare },
+      // ]
     },
     
     // Lead generation

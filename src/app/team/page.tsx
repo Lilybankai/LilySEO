@@ -1,6 +1,6 @@
 import React from 'react';
 import { Metadata } from 'next';
-import { TeamManagementPage } from '@/components/team/team-management-page';
+import { TeamTasksPage } from '@/components/team/team-tasks-page';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 
 export const metadata: Metadata = {
@@ -12,7 +12,7 @@ export default function TeamManagementRoute() {
   return (
     <DashboardLayout>
       <div className="container mx-auto py-6 space-y-8">
-        <TeamManagementPage />
+        <TeamTasksPage />
       </div>
     </DashboardLayout>
   );

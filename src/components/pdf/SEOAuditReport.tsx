@@ -547,6 +547,7 @@ const SEOAuditReport: React.FC<SEOAuditReportProps> = ({
             {calculatedIssueSummary.total > 0 && (
               <Page size={theme.pageSize} style={styles.page}>
                 <IssuesSummary 
+                  issues={issueCategories}
                   issueData={calculatedIssueSummary}
                   categoryIssues={issueCategories}
                   topIssues={topIssuesForSummary}

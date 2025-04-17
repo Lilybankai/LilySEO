@@ -849,144 +849,55 @@ async function updateAuditWithFixesNeeded(auditId: string, fixesNeeded: number) 
 }
 
 async function getAudit(projectId: string, auditId: string) {
-  try {
-    const supabase = await createClient();
-    
-    // Get user data
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error("Unauthorized");
-    }
-    
-    // First, get the basic audit information
-    const { data: auditData, error: auditError } = await supabase
-      .from("audits")
-      .select(`
-        *,
-        projects:project_id (
-          id,
-          name,
-          url
-        )
-      `)
-      .eq("id", auditId)
-      .eq("project_id", projectId)
-      .eq("user_id", user.id)
-      .single();
-    
-    if (auditError) {
-      console.error("Error fetching audit:", auditError);
-      throw new Error(auditError.message);
-    }
-    
-    if (!auditData) {
-      return null;
-    }
+  const supabase = createClient();
 
-    // Get report data from audit_reports table using project_id
-    const { data: reportData, error: reportError } = await supabase
-      .from("audit_reports")
-      .select("report_data")
-      .eq("project_id", auditData.project_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    
-    if (reportError) {
-      console.error("Error fetching audit report:", reportError);
-      // We'll continue even if there's an error with the report data
-    }
+  console.log(`[Audit Page Server] Fetching audit data for projectId: ${projectId}, auditId: ${auditId}`);
 
-    console.log('Audit data:', auditData);
-    console.log('Raw report data from audit_reports:', reportData?.report_data);
-    
-    // Transform the raw report data to match the expected structure
-    const rawReport = reportData?.report_data;
-    
-    // Add debug logging for the report structure
-    if (rawReport) {
-      console.log('Raw report structure available fields:', Object.keys(rawReport));
-      console.log('Page speed data available:', !!rawReport.pageSpeed);
-      if (rawReport.pageSpeed) {
-        console.log('Page speed mobile score:', rawReport.pageSpeed.mobile?.performance);
-        console.log('Page speed desktop score:', rawReport.pageSpeed.desktop?.performance);
-      }
-      console.log('Moz data available:', !!rawReport.mozData);
-      if (rawReport.mozData) {
-        console.log('Domain authority:', rawReport.mozData.domainAuthority);
-      }
-    }
-    
-    const transformedReport = transformReportData(rawReport);
-    
-    console.log('Transformed report summary:', {
-      hasPageSpeed: !!transformedReport?.pageSpeed,
-      hasIssues: !!transformedReport?.issues,
-      hasPerformanceIssues: !!transformedReport?.issues?.performance
-    });
-    
-    // Count total issues for fixes needed
-    const totalIssues = Object.values(transformedReport.issues).reduce((total, issues) => total + issues.length, 0);
-    
-    // Update the audit's metadata with fixes needed count if we have issues
-    if (totalIssues > 0) {
-      await updateAuditWithFixesNeeded(auditId, totalIssues);
-    }
-    
-    // Update audit score in the database if it differs from our calculated score and we have issues
-    if (transformedReport.score.overall && 
-        transformedReport.score.overall !== auditData.score && 
-       Object.values(transformedReport.issues).some(issues => issues.length > 0)) {
-      
-      console.log('Updating audit score in database from', auditData.score, 'to', transformedReport.score.overall);
-      
-      // Update the audit score in the database
-      await supabase
-        .from("audits")
-        .update({
-          score: transformedReport.score.overall,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", auditId);
-      
-      // Also update the audit data object for this session
-      auditData.score = transformedReport.score.overall;
-    }
-    
-    // Format the data to match the component props
-    const formattedData = {
-      audit: {
-        id: auditData.id,
-        projectId: auditData.project_id,
-        status: auditData.status,
-        score: auditData.score || (rawReport?.summary?.score ?? 0),
-        report: transformedReport,
-        createdAt: auditData.created_at,
-        updatedAt: auditData.updated_at
-      },
-      project: {
-        id: auditData.projects.id,
-        name: auditData.projects.name,
-        url: auditData.projects.url
-      }
-    };
-    
-    // Log structured data for debugging
-    console.log('Formatted data metrics:', {
-      pageSpeed: {
-        mobile: formattedData.audit.report.pageSpeed?.mobile?.performance || 'N/A',
-        desktop: formattedData.audit.report.pageSpeed?.desktop?.performance || 'N/A'
-      },
-      mozData: {
-        domainAuthority: formattedData.audit.report.mozData?.domainAuthority || 'N/A'
-      }
-    });
-    
-    return formattedData;
-  } catch (error) {
-    console.error("Failed to fetch audit:", error);
-    throw error;
+  const { data: audit, error: auditError } = await supabase
+    .from('audits')
+    .select(`
+      *,
+      projects (name, url)
+    `)
+    .eq('id', auditId)
+    .eq('project_id', projectId)
+    .single();
+
+  if (auditError) {
+    console.error("[Audit Page Server] Error fetching audit:", auditError);
+    return { audit: null, report: null, project: null };
   }
+  
+  if (!audit) {
+    console.log("[Audit Page Server] Audit not found.");
+    return { audit: null, report: null, project: null };
+  }
+  
+  console.log("[Audit Page Server] Raw audit data fetched:", JSON.stringify(audit));
+
+  // Fetch the associated report data
+  const { data: report, error: reportError } = await supabase
+    .from('audit_reports')
+    .select('*')
+    .eq('audit_id', auditId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (reportError) {
+    console.error("[Audit Page Server] Error fetching audit report:", reportError);
+    // Return audit data even if report fails
+  }
+
+  console.log(`[Audit Page Server] Raw audit report data fetched (audit_id: ${auditId}):`, report ? JSON.stringify(report) : 'null');
+
+  // Extract project details
+  const project = audit.projects ? { name: audit.projects.name, url: audit.projects.url } : null;
+
+  // Remove nested project data from audit before returning if needed
+  // delete audit.projects; 
+
+  return { audit, report, project };
 }
 
 async function AuditDetailPage({ params }: { params: { id: string; auditId: string } }) {
@@ -1004,7 +915,7 @@ async function AuditDetailPage({ params }: { params: { id: string; auditId: stri
         projectName={auditData.project.name}
         projectUrl={auditData.project.url}
         status={auditData.audit.status}
-        createdAt={auditData.audit.createdAt}
+        createdAt={auditData.audit.created_at}
         auditData={auditData.audit}
         onAddToTodo={addTodo}
       />

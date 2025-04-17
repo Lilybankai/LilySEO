@@ -17,30 +17,30 @@ import SaveTemplateDialog, { PdfTemplate } from './SaveTemplateDialog';
 
 interface CustomizePanelProps {
   theme: PdfTheme;
-  updateTheme: (settings: Partial<PdfTheme>) => void;
-  templates: PdfTemplate[];
-  isLoadingTemplates: boolean;
-  onSaveTemplate: (template: {name: string; description: string; themeSettings: Partial<PdfTheme>}) => Promise<void>; 
-  onLoadTemplate: (template: PdfTemplate) => void;
-  onDeleteTemplate: (templateId: string) => Promise<void>;
+  onThemeChange: (theme: Partial<PdfTheme>) => void;
+  templates?: any[];
+  isLoadingTemplates?: boolean;
+  onSaveTemplate?: (template: any) => void;
+  onLoadTemplate?: (template: any) => void;
+  onDeleteTemplate?: (templateId: string) => void;
 }
 
 const CustomizePanel: React.FC<CustomizePanelProps> = ({
   theme,
-  updateTheme,
-  templates,
-  isLoadingTemplates,
-  onSaveTemplate,
-  onLoadTemplate,
-  onDeleteTemplate
+  onThemeChange,
+  templates = [],
+  isLoadingTemplates = false,
+  onSaveTemplate = () => {},
+  onLoadTemplate = () => {},
+  onDeleteTemplate = () => {},
 }) => {
   const [activeTab, setActiveTab] = useState("content");
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
 
-  const handleIncludeChange = (section: keyof PdfTheme['includeOptions'], checked: boolean) => {
-    updateTheme({
+  const handleIncludeChange = (section: string, checked: boolean) => {
+    onThemeChange({
       includeOptions: {
-        ...theme.includeOptions,
+        ...(theme.includeOptions || {}),
         [section]: checked
       }
     });
@@ -67,7 +67,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="executiveSummary" 
-                  checked={theme.includeOptions.executiveSummary}
+                  checked={theme.includeOptions?.executiveSummary ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('executiveSummary', checked)}
                 />
               </div>
@@ -79,7 +79,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="technicalSEO" 
-                  checked={theme.includeOptions.technicalSEO}
+                  checked={theme.includeOptions?.technicalSEO ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('technicalSEO', checked)}
                 />
               </div>
@@ -91,7 +91,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="onPageSEO" 
-                  checked={theme.includeOptions.onPageSEO}
+                  checked={theme.includeOptions?.onPageSEO ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('onPageSEO', checked)}
                 />
               </div>
@@ -103,7 +103,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="offPageSEO" 
-                  checked={theme.includeOptions.offPageSEO}
+                  checked={theme.includeOptions?.offPageSEO ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('offPageSEO', checked)}
                 />
               </div>
@@ -115,7 +115,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="performance" 
-                  checked={theme.includeOptions.performance}
+                  checked={theme.includeOptions?.performance ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('performance', checked)}
                 />
               </div>
@@ -127,7 +127,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="userExperience" 
-                  checked={theme.includeOptions.userExperience}
+                  checked={theme.includeOptions?.userExperience ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('userExperience', checked)}
                 />
               </div>
@@ -139,7 +139,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="insights" 
-                  checked={theme.includeOptions.insights}
+                  checked={theme.includeOptions?.insights ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('insights', checked)}
                 />
               </div>
@@ -151,7 +151,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="recommendations" 
-                  checked={theme.includeOptions.recommendations}
+                  checked={theme.includeOptions?.recommendations ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('recommendations', checked)}
                 />
               </div>
@@ -163,7 +163,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="branding" 
-                  checked={theme.includeOptions.branding}
+                  checked={theme.includeOptions?.branding ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('branding', checked)}
                 />
               </div>
@@ -175,7 +175,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="charts" 
-                  checked={theme.includeOptions.charts}
+                  checked={theme.includeOptions?.charts ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('charts', checked)}
                 />
               </div>
@@ -187,7 +187,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="structuredData" 
-                  checked={theme.includeOptions.structuredData}
+                  checked={theme.includeOptions?.structuredData ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('structuredData', checked)}
                 />
               </div>
@@ -199,7 +199,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
                 <Switch 
                   id="internalLinks" 
-                  checked={theme.includeOptions.internalLinks}
+                  checked={theme.includeOptions?.internalLinks ?? true}
                   onCheckedChange={(checked) => handleIncludeChange('internalLinks', checked)}
                 />
               </div>
@@ -218,7 +218,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   <Label>Output Quality</Label>
                   <RadioGroup 
                     value={theme.outputQuality} 
-                    onValueChange={(value) => updateTheme({ outputQuality: value as PdfTheme['outputQuality'] })}
+                    onValueChange={(value) => onThemeChange({ outputQuality: value as PdfTheme['outputQuality'] })}
                     className="flex space-x-2"
                   >
                     <div className="flex items-center space-x-2">
@@ -240,7 +240,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   <Label>Color Mode</Label>
                   <RadioGroup 
                     value={theme.colorMode} 
-                    onValueChange={(value) => updateTheme({ colorMode: value as PdfTheme['colorMode'] })}
+                    onValueChange={(value) => onThemeChange({ colorMode: value as PdfTheme['colorMode'] })}
                     className="flex space-x-2"
                   >
                     <div className="flex items-center space-x-2">
@@ -272,7 +272,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     <Input 
                       id="primaryColor"
                       value={theme.primaryColor}
-                      onChange={(e) => updateTheme({ primaryColor: e.target.value })}
+                      onChange={(e) => onThemeChange({ primaryColor: e.target.value })}
                       placeholder="#0066cc"
                     />
                   </div>
@@ -288,7 +288,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     <Input 
                       id="secondaryColor"
                       value={theme.secondaryColor}
-                      onChange={(e) => updateTheme({ secondaryColor: e.target.value })}
+                      onChange={(e) => onThemeChange({ secondaryColor: e.target.value })}
                       placeholder="#4b5563"
                     />
                   </div>
@@ -305,7 +305,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 <Label htmlFor="fontFamily">Font Family</Label>
                 <RadioGroup 
                   value={theme.fontFamily}
-                  onValueChange={(value) => updateTheme({ fontFamily: value })}
+                  onValueChange={(value) => onThemeChange({ fontFamily: value })}
                   className="space-y-2"
                 >
                   <div className="flex items-center space-x-2">
@@ -334,7 +334,7 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
               
               <RadioGroup 
                 value={theme.pageSize} 
-                onValueChange={(value) => updateTheme({ pageSize: value as PdfTheme['pageSize'] })}
+                onValueChange={(value) => onThemeChange({ pageSize: value as PdfTheme['pageSize'] })}
                 className="flex flex-col space-y-2"
               >
                 <div className="flex items-center space-x-2">
@@ -378,9 +378,9 @@ const CustomizePanel: React.FC<CustomizePanelProps> = ({
         isOpen={isTemplateDialogOpen}
         onClose={() => setIsTemplateDialogOpen(false)}
         currentSettings={theme}
-        onSaveTemplate={onSaveTemplate}
+        onSaveTemplate={async (template) => onSaveTemplate(template)}
         onLoadTemplate={onLoadTemplate}
-        onDeleteTemplate={onDeleteTemplate}
+        onDeleteTemplate={async (templateId) => onDeleteTemplate(templateId)}
         templates={templates}
         isLoading={isLoadingTemplates}
       />

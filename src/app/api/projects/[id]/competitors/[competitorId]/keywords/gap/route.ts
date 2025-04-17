@@ -18,6 +18,31 @@ export async function GET(
       );
     }
 
+    // Get project and user profile to check ownership and get tier
+    const { data: projectData, error: projectError } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        user_id,
+        profiles ( subscription_tier )
+      `)
+      .eq('id', params.id)
+      .eq('user_id', session.session.user.id)
+      .single();
+
+    if (projectError || !projectData) {
+      // Handle error or not found...
+      const status = projectError?.code === 'PGRST116' ? 404 : 500;
+      const message = status === 404 ? 'Project not found or unauthorized' : 'Database error fetching project';
+      if (projectError) console.error('Error fetching project/profile:', projectError);
+      return new NextResponse(JSON.stringify({ error: message }), { status });
+    }
+    
+    // Extract user tier, default to 'free'
+    const profileInfo = Array.isArray(projectData.profiles) ? projectData.profiles[0] : projectData.profiles;
+    const userTier = profileInfo?.subscription_tier ?? 'free';
+    console.log(`User tier for project ${params.id}: ${userTier}`);
+
     // First check if the project belongs to the user
     const { data: project } = await supabase
       .from('projects')
@@ -120,6 +145,22 @@ export async function GET(
     // Sort shared keywords by position difference (negative means competitor ranks better)
     const sortedSharedKeywords = sharedKeywords.sort((a, b) => a.positionDifference - b.positionDifference);
 
+    // Fetch the limit for keyword gap items
+    const { data: limitData, error: limitError } = await supabase
+      .from('usage_limits')
+      .select('monthly_limit')
+      .eq('plan_type', userTier)
+      .eq('feature_name', 'keyword_gaps_items')
+      .single();
+
+    let maxItems = 5; // Default limit (free tier)
+    if (limitError) {
+        console.error(`Error fetching keyword_gaps_items limit for tier ${userTier}, using default:`, limitError);
+    } else if (limitData) {
+        maxItems = limitData.monthly_limit === -1 ? Infinity : limitData.monthly_limit;
+    }
+    console.log(`Max keyword gap items for tier ${userTier}: ${maxItems}`);
+
     // Prepare the response
     const response = {
       competitor: {
@@ -135,31 +176,21 @@ export async function GET(
         shared: sharedKeywords.length
       },
       keywordGaps: {
-        uniqueToCompetitor: uniqueToCompetitor.slice(0, 50), // Limit to 50 for performance
-        uniqueToProject: uniqueToProject.slice(0, 50),
-        shared: sortedSharedKeywords.slice(0, 50)
+        uniqueToCompetitor: uniqueToCompetitor.slice(0, maxItems === Infinity ? undefined : maxItems),
+        uniqueToProject: uniqueToProject.slice(0, maxItems === Infinity ? undefined : maxItems),
+        shared: sortedSharedKeywords.slice(0, maxItems === Infinity ? undefined : maxItems)
       },
       opportunities: opportunities || [],
-      // Apply tier-based limitations
       meta: {
-        tier: project.subscription_tier,
-        // Free tier gets limited data
-        limitApplied: project.subscription_tier === 'free',
-        maxOpportunities: project.subscription_tier === 'free' ? 5 : 
-                          project.subscription_tier === 'pro' ? 50 : 
-                          500
+        tier: userTier,
+        limitApplied: maxItems !== Infinity,
+        maxItems
       }
     };
 
-    // Apply tier-based limitations to response data
-    if (project.subscription_tier === 'free') {
-      response.opportunities = (opportunities || []).slice(0, 5);
-      response.keywordGaps.uniqueToCompetitor = uniqueToCompetitor.slice(0, 5);
-      response.keywordGaps.uniqueToProject = uniqueToProject.slice(0, 5);
-      response.keywordGaps.shared = sortedSharedKeywords.slice(0, 5);
-    } else if (project.subscription_tier === 'pro') {
-      response.opportunities = (opportunities || []).slice(0, 50);
-    }
+    // Apply tier-based limitations to opportunities (assuming opportunities also follow keyword_gaps_items limit for simplicity)
+    // If opportunities need a separate limit, fetch 'max_keyword_opportunities' from usage_limits
+    response.opportunities = (opportunities || []).slice(0, maxItems === Infinity ? undefined : maxItems);
 
     return NextResponse.json(response);
   } catch (error) {

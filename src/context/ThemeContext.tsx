@@ -5,29 +5,32 @@ import { createContext, useState, useContext, ReactNode } from 'react';
 // PDF Theme types
 export interface PdfTheme {
   primaryColor: string;
-  secondaryColor: string;
-  fontFamily: string; // Important: Use only a single font name here, not a comma-separated list
-  companyName: string;
-  logoUrl?: string;
+  secondaryColor?: string;
+  companyName?: string;
+  fontFamily?: string;
+  logoUrl: string;
   contactInfo?: string;
   footerText?: string;
-  // New customization options
-  pageSize: 'A4' | 'LETTER' | 'LEGAL';
-  colorMode: 'Full' | 'Grayscale';
-  outputQuality: 'Draft' | 'Standard' | 'High';
-  includeOptions: {
-    executiveSummary: boolean;
-    technicalSEO: boolean;
-    onPageSEO: boolean;
-    offPageSEO: boolean;
-    performance: boolean;
-    userExperience: boolean;
-    insights: boolean;
-    recommendations: boolean;
-    charts: boolean;
-    branding: boolean;
-    structuredData: boolean;
-    internalLinks: boolean;
+  pageSize?: string;
+  colorMode?: string;
+  outputQuality?: string;
+  clientName?: string;
+  preparedBy?: string;
+  customNotes?: string;
+  coverStyle?: number;
+  includeOptions?: {
+    executiveSummary?: boolean;
+    technicalSEO?: boolean;
+    onPageSEO?: boolean;
+    offPageSEO?: boolean;
+    performance?: boolean;
+    userExperience?: boolean;
+    insights?: boolean;
+    recommendations?: boolean;
+    charts?: boolean;
+    branding?: boolean;
+    structuredData?: boolean;
+    internalLinks?: boolean;
   };
 }
 
@@ -42,7 +45,7 @@ const defaultTheme: PdfTheme = {
   secondaryColor: '#4b5563',
   fontFamily: 'Helvetica', // Changed from 'Poppins, Montserrat, sans-serif' to a single font
   companyName: 'LilySEO',
-  logoUrl: undefined,
+  logoUrl: '', // Empty string instead of undefined
   contactInfo: 'support@lilyseo.com',
   footerText: `© ${new Date().getFullYear()} LilySEO. All rights reserved.`,
   // Default customization options

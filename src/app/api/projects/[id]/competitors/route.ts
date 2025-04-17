@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 // import { cookies } from 'next/headers'; 
 import { Database } from '@/types/supabase';
 import { z } from 'zod';
+import { URL } from 'url';
 
 // Schema for validating competitor data
 const competitorSchema = z.object({
@@ -86,93 +87,93 @@ export async function POST(
   try {
     const body = await request.json();
     const projectId = params.id; 
-    
     console.log(`[API POST /projects/${projectId}/competitors] Received request`);
-    
+
     // Validate input
     const result = competitorSchema.safeParse(body);
     if (!result.success) {
       console.error(`[API POST /projects/${projectId}/competitors] Input validation failed:`, result.error.issues);
-      return new NextResponse(
-        JSON.stringify({ error: result.error.issues[0].message }),
-        { status: 400 }
-      );
+      return new NextResponse(JSON.stringify({ error: result.error.issues[0].message }), { status: 400 });
     }
-    
     const { url, name } = result.data;
     console.log(`[API POST /projects/${projectId}/competitors] Validated input: url=${url}, name=${name}`);
-    
-    // Await the creation of the Supabase client using the project's setup
+
     const supabase = await createClient(); 
-    
-    // Use getUser() for secure authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
       console.error(`[API POST /projects/${projectId}/competitors] Authentication failed:`, authError?.message || 'No user');
-      return new NextResponse(
-        JSON.stringify({ error: 'Not authenticated' }),
-        { status: 401 }
-      );
+      return new NextResponse(JSON.stringify({ error: 'Not authenticated' }), { status: 401 });
     }
-    
     console.log(`[API POST /projects/${projectId}/competitors] User authenticated: ${user.id}`);
 
-    // First check if the project belongs to the user
-    const { data: project, error: projectError } = await supabase
+    // Get project AND user profile to check ownership and get tier
+    const { data: projectData, error: projectError } = await supabase
       .from('projects')
-      .select('id, user_id, competitor_limit') 
+      .select(`
+        id,
+        user_id,
+        profiles ( subscription_tier )
+      `)
       .eq('id', projectId) 
       .eq('user_id', user.id)
       .single();
 
-    // Log the specific error if one occurred
     if (projectError) {
       console.error(`[API POST /projects/${projectId}/competitors] Database error checking project access for user ${user.id}:`, projectError);
-      // Return a 500 if it was a database error, not a 404
-      return new NextResponse(
-        JSON.stringify({ error: 'Database error checking project access' }),
-        { status: 500 } 
-      );
+      if (projectError.code === 'PGRST116') {
+         return new NextResponse(JSON.stringify({ error: 'Project not found or unauthorized' }), { status: 404 });
+      }
+      return new NextResponse(JSON.stringify({ error: 'Database error checking project access' }), { status: 500 });
     }
-    
-    // Log if the project was simply not found (null result, no error)
-    if (!project) {
-      console.error(`[API POST /projects/${projectId}/competitors] Project not found for user ${user.id}. Query returned null.`);
-      return new NextResponse(
-        JSON.stringify({ error: 'Project not found or unauthorized' }),
-        { status: 404 }
-      );
-    }
-    
-    console.log(`[API POST /projects/${projectId}/competitors] User ${user.id} authorized for project ${project.id}`);
 
-    // Use the competitor_limit from the project, default to a low number if not set
-    const limit = project.competitor_limit ?? 3; 
-    console.log(`[API POST /projects/${projectId}/competitors] Using competitor limit from project data: ${limit}`);
+    if (!projectData) {
+      console.error(`[API POST /projects/${projectId}/competitors] Project not found for user ${user.id}.`);
+      return new NextResponse(JSON.stringify({ error: 'Project not found or unauthorized' }), { status: 404 });
+    }
+    console.log(`[API POST /projects/${projectId}/competitors] User ${user.id} authorized for project ${projectData.id}`);
+
+    // Extract user tier, default to 'free'
+    const profileInfo = Array.isArray(projectData.profiles) ? projectData.profiles[0] : projectData.profiles;
+    const userTier = profileInfo?.subscription_tier ?? 'free';
+    console.log(`[API POST /projects/${projectId}/competitors] User tier: ${userTier}`);
+
+    // Fetch the competitor limit for the user's tier
+    const { data: limitData, error: limitError } = await supabase
+      .from('usage_limits')
+      .select('monthly_limit')
+      .eq('plan_type', userTier)
+      .eq('feature_name', 'max_competitors')
+      .single();
+
+    let limit = 3; // Default limit
+    if (limitError) {
+      console.error(`Error fetching competitor limit for tier ${userTier}, using default:`, limitError);
+    } else if (limitData) {
+      limit = limitData.monthly_limit === -1 ? Infinity : limitData.monthly_limit;
+    }
+    console.log(`[API POST /projects/${projectId}/competitors] Using competitor limit for tier ${userTier}: ${limit}`);
 
     // Count existing competitors
     const { count, error: countError } = await supabase
       .from('competitors')
-      .select('*', { count: 'exact', head: true })
-      .eq('project_id', projectId); 
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', projectId);
 
     if (countError) {
       console.error('Error counting competitors:', countError);
-      return new NextResponse(
-        JSON.stringify({ error: 'Error checking competitor limit' }),
-        { status: 500 }
-      );
+      return new NextResponse(JSON.stringify({ error: 'Error checking competitor count' }), { status: 500 });
     }
 
-    console.log(`[API POST /projects/${projectId}/competitors] Checking competitor count limit (Limit: ${limit}, Current: ${count})`);
+    console.log(`[API POST /projects/${projectId}/competitors] Checking competitor count limit (Limit: ${limit === Infinity ? 'Unlimited' : limit}, Current: ${count})`);
 
-    if ((count || 0) >= limit) {
+    if ((count ?? 0) >= limit) {
       console.warn(`[API POST /projects/${projectId}/competitors] Competitor limit reached for user ${user.id}`);
+      const limitMessage = limit === Infinity ? "an unexpected issue occurred" : `your plan's limit of ${limit} competitors`;
       return new NextResponse(
         JSON.stringify({ 
-          error: `You have reached your plan's limit of ${limit} competitors. Please upgrade to add more.` 
-        }),
+          error: `You have reached ${limitMessage}. Please upgrade or contact support to add more.` 
+        }), 
         { status: 400 } 
       );
     }

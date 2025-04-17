@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       // Set a timeout to avoid hanging if the service is down
       signal: AbortSignal.timeout(5000),
     });

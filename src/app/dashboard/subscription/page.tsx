@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getUserSubscription, subscriptionPlans, SubscriptionPlan, createPayPalSubscription, capturePayPalOrder } from '@/services/subscription'
+import { getUserSubscription, SubscriptionPlan, createPayPalSubscription, capturePayPalOrder } from '@/services/subscription'
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js'
 import { Check, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,39 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
+
+// Define types
+type PlanLimits = Record<string, number | string | null>;
+type AllLimits = Record<'free' | 'pro' | 'enterprise', PlanLimits>;
+
+// Use a specific type for the plans displayed, excluding features
+type DisplayPlan = {
+  id: string;
+  name: string;
+  tier: 'free' | 'pro' | 'enterprise';
+  price: number;
+  recommended: boolean;
+};
+
+// Hardcoded plan details (names, prices, descriptions)
+const subscriptionPlans: DisplayPlan[] = [
+  { id: 'free', name: 'Free', tier: 'free', price: 0, recommended: false },
+  { id: 'pro_monthly', name: 'Pro', tier: 'pro', price: 49, recommended: true },
+  { id: 'enterprise_monthly', name: 'Enterprise', tier: 'enterprise', price: 199, recommended: false },
+];
+
+// Feature list with keys matching the database feature_names
+const featuresList: { key: keyof PlanLimits | string; label: string; unit?: string }[] = [
+  { key: 'max_projects', label: 'Projects' },
+  { key: 'max_pages_per_crawl', label: 'Max Pages per Crawl' },
+  { key: 'max_competitors', label: 'Competitors per Project' },
+  { key: 'audits_per_month', label: 'Audits per Month' },
+  { key: 'team_member_limit', label: 'Team Members' },
+  { key: 'competitor_history_days', label: 'Competitor History', unit: 'days' },
+  { key: 'keyword_gaps_items', label: 'Keyword Gap Analysis' },
+  { key: 'max_concurrent_crawls', label: 'Concurrent Crawls' },
+  // Add other features as needed, e.g., API access, support level
+];
 
 export default function SubscriptionPage() {
   const router = useRouter()
@@ -27,6 +60,7 @@ export default function SubscriptionPage() {
     success?: boolean;
     message?: string;
   }>({})
+  const [allLimits, setAllLimits] = useState<AllLimits | null>(null);
 
   // Check for success or canceled payment parameters
   useEffect(() => {
@@ -45,44 +79,48 @@ export default function SubscriptionPage() {
     }
   }, [searchParams])
 
-  // Load current user subscription
+  // Load user subscription AND plan limits
   useEffect(() => {
-    async function loadUserAndSubscription() {
+    async function loadInitialData() {
       try {
-        setLoading(true)
-        
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser()
-        
+        setLoading(true);
+        const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          router.push('/auth/signin')
-          return
+          router.push('/auth/signin');
+          return;
         }
-        
-        setUserId(user.id)
-        
-        // Get current subscription
-        const subscription = await getUserSubscription()
-        setCurrentSubscription(subscription)
-        
-        // Check if we need to show payment success message
-        const success = searchParams.get('success')
+        setUserId(user.id);
+
+        // Fetch subscription and limits concurrently
+        const [subscription, limitsResponse] = await Promise.all([
+          getUserSubscription(),
+          fetch('/api/limits')
+        ]);
+
+        setCurrentSubscription(subscription);
+
+        if (!limitsResponse.ok) {
+          console.error('Failed to fetch limits');
+          // Handle error appropriately, maybe show a message
+        } else {
+          const limitsData = await limitsResponse.json();
+          setAllLimits(limitsData);
+        }
+
+        // Check payment success message
+        const success = searchParams.get('success');
         if (success === 'true') {
-          setPaymentStatus({
-            success: true,
-            message: `Successfully upgraded to ${subscription.tier} plan!`
-          })
+          setPaymentStatus({ success: true, message: `Successfully upgraded to ${subscription.tier} plan!` });
         }
-        
+
       } catch (error) {
-        console.error('Error loading subscription:', error)
+        console.error('Error loading initial data:', error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
-    
-    loadUserAndSubscription()
-  }, [router, supabase, searchParams])
+    loadInitialData();
+  }, [router, supabase, searchParams]);
 
   // Handle successful PayPal payment
   async function handleSuccessfulPayment(orderId: string, planId: string) {
@@ -119,22 +157,24 @@ export default function SubscriptionPage() {
   }
 
   // Handle subscription plan selection
-  async function handleSelectPlan(plan: SubscriptionPlan) {
+  async function handleSelectPlan(plan: DisplayPlan) {
     try {
-      // If selecting the current plan, do nothing
       if (plan.tier === currentSubscription?.tier) {
-        return
+        return;
       }
       
-      // If selecting free plan, simple update
+      // Construct a partial SubscriptionPlan object if needed by API
+      const planForApi = { ...plan, features: [] }; // Add empty features array
+
       if (plan.tier === 'free') {
-        setProcessingPayment(true)
-        
+        setProcessingPayment(true);
+        // Use planForApi if createPayPalSubscription expects features
         const response = await fetch('/api/subscriptions/create-paypal-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ planId: 'free' })
-        })
+          // Assuming the API only needs the plan ID from the body
+          body: JSON.stringify({ planId: plan.id }) 
+        });
         
         if (response.ok) {
           // Reload subscription details
@@ -152,14 +192,14 @@ export default function SubscriptionPage() {
           })
         }
         
-        setProcessingPayment(false)
-        return
+        setProcessingPayment(false);
+        return;
       }
       
       // For paid plans, initiate PayPal flow
-      setProcessingPayment(true)
-      
-      const { orderID } = await createPayPalSubscription(plan.id)
+      setProcessingPayment(true);
+      // Pass plan.id to createPayPalSubscription
+      const { orderID } = await createPayPalSubscription(plan.id);
       
       // Store the order details in local storage (temp)
       localStorage.setItem('pendingSubscription', JSON.stringify({
@@ -179,7 +219,7 @@ export default function SubscriptionPage() {
   }
 
   // Calculate price with discount for yearly billing
-  function getAdjustedPrice(plan: SubscriptionPlan) {
+  function getAdjustedPrice(plan: DisplayPlan) {
     if (billingCycle === 'yearly') {
       // 20% discount for yearly billing
       return Math.round(plan.price * 12 * 0.8)
@@ -187,7 +227,7 @@ export default function SubscriptionPage() {
     return plan.price
   }
 
-  if (loading) {
+  if (loading || !allLimits) {
     return (
       <div className="container max-w-6xl py-8">
         <h1 className="text-3xl font-bold mb-8">Subscription</h1>
@@ -304,7 +344,8 @@ export default function SubscriptionPage() {
           {subscriptionPlans.map((plan) => {
             const isCurrentPlan = currentSubscription?.tier === plan.tier
             const price = getAdjustedPrice(plan)
-            
+            const limitsForThisPlan = allLimits[plan.tier as keyof AllLimits];
+
             return (
               <Card 
                 key={plan.id}
@@ -341,12 +382,39 @@ export default function SubscriptionPage() {
                   </div>
                   
                   <ul className="space-y-2 mb-6">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-center">
-                        <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
+                    {featuresList.map((feature) => {
+                      const limitValue = limitsForThisPlan ? limitsForThisPlan[feature.key] : 'N/A';
+                      const displayValue = limitValue === -1 ? 'Unlimited' : limitValue;
+                      return (
+                        <li key={feature.key} className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                          <span className="text-sm">
+                            {`${feature.label}: `}
+                            <span className="font-medium">
+                                {displayValue}
+                                {feature.unit && limitValue !== 'Unlimited' && ` ${feature.unit}`}
+                            </span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                    {/* Add any extra non-limit features specific to plans if needed */}
+                     <li className="flex items-center">
+                       <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                       <span className="text-sm">Standard Support</span>
+                     </li>
+                     {plan.tier === 'pro' && (
+                        <li className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                          <span className="text-sm">Priority Support</span>
+                        </li>
+                     )}
+                     {plan.tier === 'enterprise' && (
+                        <li className="flex items-center">
+                          <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                          <span className="text-sm">Dedicated Account Manager</span>
+                        </li>
+                     )}
                   </ul>
                 </CardContent>
                 

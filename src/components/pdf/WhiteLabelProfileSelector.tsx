@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Select, 
   SelectContent, 
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Info, Plus, Save, Check, Edit, Copy, Trash } from 'lucide-react';
+import { Info, Plus, Save, Check, Edit, Copy, Trash, Loader2, PlusCircle, Eye } from 'lucide-react';
 import { PdfTheme } from '@/context/ThemeContext';
 import { logPdfEvent, safeHslToHex } from '@/utils';
 
@@ -20,74 +20,86 @@ import { logPdfEvent, safeHslToHex } from '@/utils';
 export interface WhiteLabelProfile {
   id: string;
   name: string;
-  companyName: string;
+  theme: PdfTheme;
   primaryColor: string;
-  secondaryColor: string;
-  logoUrl?: string;
-  contactInfo?: string;
-  footerText?: string;
+  logoUrl: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface FormData {
+  name: string;
+  primaryColor: string;
+  logoUrl: string;
 }
 
 interface WhiteLabelProfileSelectorProps {
   profiles: WhiteLabelProfile[];
   selectedProfileId: string | null;
-  onSelectProfile: (profileId: string) => void;
-  onUpdateProfile: (profile: WhiteLabelProfile) => Promise<void>;
-  onCreateProfile: (profile: Omit<WhiteLabelProfile, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  onDeleteProfile: (profileId: string) => Promise<void>;
-  onPreviewProfile: (profile: WhiteLabelProfile) => void;
-  isLoading: boolean;
-  theme: PdfTheme;
+  onProfileSelect: (profileId: string) => void;
+  onProfileUpdate: (profile: WhiteLabelProfile) => void;
+  onProfileCreate: (profile: Partial<WhiteLabelProfile>) => void;
+  onProfileDelete: (profileId: string) => void;
+  onPreviewProfile?: (profile: WhiteLabelProfile) => void;
+  isLoading?: boolean;
+  theme?: PdfTheme;
 }
+
+const defaultTheme: PdfTheme = {
+  primaryColor: '#000000',
+  logoUrl: '',
+  clientName: '',
+  preparedBy: '',
+  customNotes: '',
+  coverStyle: 1,
+  includeOptions: {
+    executiveSummary: true,
+    technicalSEO: true,
+    onPageSEO: true,
+    offPageSEO: true,
+    performance: true,
+    userExperience: true,
+    insights: true,
+    recommendations: true,
+    charts: true,
+    branding: true,
+    structuredData: true,
+    internalLinks: true,
+  }
+};
 
 const WhiteLabelProfileSelector: React.FC<WhiteLabelProfileSelectorProps> = ({
   profiles,
   selectedProfileId,
-  onSelectProfile,
-  onUpdateProfile,
-  onCreateProfile,
-  onDeleteProfile,
-  onPreviewProfile,
-  isLoading,
-  theme,
+  onProfileSelect,
+  onProfileUpdate,
+  onProfileCreate,
+  onProfileDelete,
+  onPreviewProfile = () => {},
+  isLoading = false,
+  theme = defaultTheme,
 }) => {
   const [activeTab, setActiveTab] = useState<'select' | 'create' | 'edit'>('select');
-  const [selectedProfile, setSelectedProfile] = useState<WhiteLabelProfile | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  
-  // Form state for creating/editing profiles
-  const [formData, setFormData] = useState({
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState<FormData>({
     name: '',
-    companyName: '',
-    primaryColor: '#3b82f6',
-    secondaryColor: '#64748b',
+    primaryColor: '#000000',
     logoUrl: '',
-    contactInfo: '',
-    footerText: ''
   });
   
-  // When selected profile changes, update the form data
+  // Get the currently selected profile
+  const selectedProfile = selectedProfileId ? profiles.find(p => p.id === selectedProfileId) : null;
+
+  // Update form when selected profile changes
   useEffect(() => {
-    if (selectedProfileId) {
-      const profile = profiles.find(p => p.id === selectedProfileId);
-      if (profile) {
-        setSelectedProfile(profile);
-        if (isEditing) {
+    if (selectedProfile) {
           setFormData({
-            name: profile.name,
-            companyName: profile.companyName,
-            primaryColor: profile.primaryColor,
-            secondaryColor: profile.secondaryColor,
-            logoUrl: profile.logoUrl || '',
-            contactInfo: profile.contactInfo || '',
-            footerText: profile.footerText || ''
-          });
-        }
-      }
+        name: selectedProfile.name,
+        primaryColor: selectedProfile.primaryColor,
+        logoUrl: selectedProfile.logoUrl || '',
+      });
     }
-  }, [selectedProfileId, profiles, isEditing]);
+  }, [selectedProfile]);
   
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,323 +107,219 @@ const WhiteLabelProfileSelector: React.FC<WhiteLabelProfileSelectorProps> = ({
     setFormData(prev => ({ ...prev, [name]: value }));
   };
   
-  // Handle color changes
-  const handleColorChange = (color: string, field: 'primaryColor' | 'secondaryColor') => {
-    // Log the color change attempt
-    logPdfEvent('profile-color-change', {
-      field,
-      newColor: color,
-      isHsl: color?.startsWith('hsl')
-    });
-    
-    // Process HSL colors safely
-    let safeColor = color;
-    if (color && color.startsWith('hsl')) {
-      safeColor = safeHslToHex(color, field === 'primaryColor' ? '#3b82f6' : '#64748b');
-      
-      logPdfEvent('profile-color-processed', {
-        field,
-        original: color,
-        processed: safeColor
-      });
-    }
-    
-    setFormData(prev => ({ ...prev, [field]: safeColor }));
+  // Handle color input changes
+  const handleColorChange = (color: string, field: 'primaryColor') => {
+    setFormData(prev => ({ ...prev, [field]: color }));
   };
   
   // Handle profile selection
   const handleProfileSelect = (profileId: string) => {
-    onSelectProfile(profileId);
-    setIsEditing(false);
+    onProfileSelect(profileId);
   };
   
-  // Handle create profile
+  // Handle creating a new profile
   const handleCreateProfile = async () => {
+    if (!formData.name) {
+      alert('Please enter a profile name');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
     try {
-      // Log the profile creation attempt
-      logPdfEvent('profile-create', {
-        profileName: formData.name,
-        primaryColor: formData.primaryColor,
-        isPrimaryHsl: formData.primaryColor?.startsWith('hsl'),
-        secondaryColor: formData.secondaryColor,
-        isSecondaryHsl: formData.secondaryColor?.startsWith('hsl')
-      });
-      
-      // Process HSL colors safely
-      let safePrimaryColor = formData.primaryColor;
-      if (safePrimaryColor && safePrimaryColor.startsWith('hsl')) {
-        safePrimaryColor = safeHslToHex(safePrimaryColor, '#3b82f6');
-      }
-      
-      let safeSecondaryColor = formData.secondaryColor;
-      if (safeSecondaryColor && safeSecondaryColor.startsWith('hsl')) {
-        safeSecondaryColor = safeHslToHex(safeSecondaryColor, '#64748b');
-      }
+      // Make sure primary color is valid hex
+      const safePrimaryColor = formData.primaryColor.startsWith('#') 
+        ? formData.primaryColor 
+        : '#' + formData.primaryColor;
       
       // Create the profile with safe colors
-      await onCreateProfile({
+      await onProfileCreate({
         name: formData.name,
-        companyName: formData.companyName,
+        theme: theme,
         primaryColor: safePrimaryColor,
-        secondaryColor: safeSecondaryColor,
-        logoUrl: formData.logoUrl,
-        contactInfo: formData.contactInfo,
-        footerText: formData.footerText || `© ${new Date().getFullYear()} ${formData.companyName}. All rights reserved.`
+        logoUrl: formData.logoUrl || '',
       });
       
-      // Log successful profile creation
-      logPdfEvent('profile-created', {
-        name: formData.name,
-        originalPrimary: formData.primaryColor,
-        processedPrimary: safePrimaryColor,
-        originalSecondary: formData.secondaryColor,
-        processedSecondary: safeSecondaryColor
-      });
-      
-      // Reset form and switch to select tab
+      // Reset form
       setFormData({
         name: '',
-        companyName: '',
-        primaryColor: '#3b82f6',
-        secondaryColor: '#64748b',
+        primaryColor: '#000000',
         logoUrl: '',
-        contactInfo: '',
-        footerText: ''
       });
+      
+      // Switch back to select tab
       setActiveTab('select');
     } catch (error) {
-      console.error('Error creating profile:', error);
-      logPdfEvent('profile-create-error', { 
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      // Handle error (could add toast notification here)
+      console.error('Failed to create profile:', error);
+      alert('Failed to create profile. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
-  // Handle update profile
+
+  // Handle updating a profile
   const handleUpdateProfile = async () => {
     if (!selectedProfile) return;
     
+    if (!formData.name) {
+      alert('Please enter a profile name');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
     try {
-      // Log the profile update attempt
-      logPdfEvent('profile-update', {
-        profileId: selectedProfile.id,
-        profileName: formData.name,
-        primaryColor: formData.primaryColor,
-        isPrimaryHsl: formData.primaryColor?.startsWith('hsl'),
-        secondaryColor: formData.secondaryColor,
-        isSecondaryHsl: formData.secondaryColor?.startsWith('hsl')
-      });
-      
-      // Process HSL colors safely
-      let safePrimaryColor = formData.primaryColor;
-      if (safePrimaryColor && safePrimaryColor.startsWith('hsl')) {
-        safePrimaryColor = safeHslToHex(safePrimaryColor, '#3b82f6');
-      }
-      
-      let safeSecondaryColor = formData.secondaryColor;
-      if (safeSecondaryColor && safeSecondaryColor.startsWith('hsl')) {
-        safeSecondaryColor = safeHslToHex(safeSecondaryColor, '#64748b');
-      }
+      // Make sure primary color is valid hex
+      const safePrimaryColor = formData.primaryColor.startsWith('#') 
+        ? formData.primaryColor 
+        : '#' + formData.primaryColor;
       
       // Update the profile with safe colors
-      await onUpdateProfile({
+      await onProfileUpdate({
         ...selectedProfile,
         name: formData.name,
-        companyName: formData.companyName,
+        theme: theme,
         primaryColor: safePrimaryColor,
-        secondaryColor: safeSecondaryColor,
-        logoUrl: formData.logoUrl,
-        contactInfo: formData.contactInfo,
-        footerText: formData.footerText,
-        updatedAt: new Date().toISOString()
+        logoUrl: formData.logoUrl || '',
       });
       
-      // Log successful profile update
-      logPdfEvent('profile-updated', {
-        profileId: selectedProfile.id,
-        name: formData.name,
-        originalPrimary: formData.primaryColor,
-        processedPrimary: safePrimaryColor,
-        originalSecondary: formData.secondaryColor,
-        processedSecondary: safeSecondaryColor
-      });
-      
-      setIsEditing(false);
+      // Switch back to select tab
       setActiveTab('select');
     } catch (error) {
-      console.error('Error updating profile:', error);
-      logPdfEvent('profile-update-error', { 
-        profileId: selectedProfile.id,
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      // Handle error
+      console.error('Failed to update profile:', error);
+      alert('Failed to update profile. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
-  // Handle delete profile
+
+  // Handle deleting a profile
   const handleDeleteProfile = async (profileId: string) => {
     if (window.confirm('Are you sure you want to delete this profile?')) {
       try {
-        await onDeleteProfile(profileId);
+        await onProfileDelete(profileId);
         if (selectedProfileId === profileId) {
-          onSelectProfile(profiles[0]?.id || '');
+          onProfileSelect(profiles[0]?.id || '');
         }
       } catch (error) {
-        console.error('Error deleting profile:', error);
-        // Handle error
+        console.error('Failed to delete profile:', error);
+        alert('Failed to delete profile. Please try again.');
       }
     }
   };
   
-  // Handle preview profile
+  // Handle previewing a profile
   const handlePreviewProfile = () => {
-    if (!selectedProfile) return;
-    
-    if (isEditing) {
-      // Preview the edited version
-      onPreviewProfile({
-        ...selectedProfile,
-        name: formData.name,
-        companyName: formData.companyName,
-        primaryColor: formData.primaryColor,
-        secondaryColor: formData.secondaryColor,
-        logoUrl: formData.logoUrl,
-        contactInfo: formData.contactInfo,
-        footerText: formData.footerText
-      });
-    } else {
-      // Preview the selected profile
+    if (selectedProfile) {
       onPreviewProfile(selectedProfile);
     }
   };
   
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">White Label Profiles</h3>
-      <p className="text-sm text-muted-foreground">
-        Customize how your PDF reports look with branded colors, logos, and contact information.
-      </p>
-      
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
+    <Tabs value={activeTab} onValueChange={setActiveTab as any}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="select">Select Profile</TabsTrigger>
           <TabsTrigger value="create">Create New</TabsTrigger>
-          <TabsTrigger value="edit" disabled={!selectedProfile || isLoading}>
-            Edit Profile
-          </TabsTrigger>
+        <TabsTrigger value="edit" disabled={!selectedProfile}>Edit Profile</TabsTrigger>
         </TabsList>
         
-        {/* Select Profile Tab */}
-        <TabsContent value="select" className="space-y-4">
-          {profiles.length === 0 ? (
-            <div className="text-center p-4 bg-muted rounded-md">
-              <p className="text-sm text-muted-foreground">No white label profiles found.</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="mt-2"
-                onClick={() => setActiveTab('create')}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Profile
+      <TabsContent value="select" className="pt-4">
+        {isLoading ? (
+          <div className="flex justify-center items-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : profiles.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>No Profiles Found</CardTitle>
+              <CardDescription>
+                Create a new white label profile to customize your PDF reports.
+              </CardDescription>
+            </CardHeader>
+            <CardFooter>
+              <Button onClick={() => setActiveTab('create')}>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Create Profile
               </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <Select 
-                value={selectedProfileId || undefined} 
-                onValueChange={handleProfileSelect}
-                disabled={isLoading}
+            </CardFooter>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {profiles.map((profile) => (
+              <Card 
+                key={profile.id} 
+                className={`cursor-pointer transition-all ${
+                  selectedProfileId === profile.id ? 'ring-2 ring-primary' : ''
+                }`}
+                onClick={() => handleProfileSelect(profile.id)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a profile" />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.map(profile => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {selectedProfile && (
-                <Card className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-base font-semibold">{selectedProfile.name}</h4>
-                    <div className="flex space-x-2">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-lg">{profile.name}</CardTitle>
+                    <div className="flex space-x-1">
                       <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          setIsEditing(true);
-                          setActiveTab('edit');
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setFormData({
-                            name: selectedProfile.name,
-                            companyName: selectedProfile.companyName,
-                            primaryColor: selectedProfile.primaryColor,
-                            secondaryColor: selectedProfile.secondaryColor,
-                            logoUrl: selectedProfile.logoUrl || '',
-                            contactInfo: selectedProfile.contactInfo || '',
-                            footerText: selectedProfile.footerText || ''
+                            name: profile.name,
+                            primaryColor: profile.primaryColor,
+                            logoUrl: profile.logoUrl || '',
                           });
+                          setActiveTab('edit');
                         }}
                       >
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
+                        <Edit className="h-4 w-4" />
                       </Button>
                       <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => handleDeleteProfile(selectedProfile.id)}
+                        variant="ghost" 
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteProfile(profile.id);
+                        }}
                       >
-                        <Trash className="h-4 w-4 mr-2" />
-                        Delete
+                        <Trash className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Company</Label>
-                      <p className="text-sm">{selectedProfile.companyName}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Contact</Label>
-                      <p className="text-sm">{selectedProfile.contactInfo || '-'}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-4 mb-4">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Primary Color</Label>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {profile.logoUrl && (
+                      <img 
+                        src={profile.logoUrl} 
+                        alt={`${profile.name} logo`} 
+                        className="h-16 object-contain" 
+                      />
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-2">
                       <div 
                         className="h-6 w-6 rounded-full border" 
-                        style={{ backgroundColor: selectedProfile.primaryColor }}
+                          style={{ backgroundColor: profile.primaryColor }}
                       />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Secondary Color</Label>
-                      <div 
-                        className="h-6 w-6 rounded-full border" 
-                        style={{ backgroundColor: selectedProfile.secondaryColor }}
-                      />
+                        <span className="text-xs text-muted-foreground">Primary</span>
+                      </div>
                     </div>
                   </div>
-                  
-                  <Button onClick={handlePreviewProfile}>
-                    Preview with This Profile
-                  </Button>
+                </CardContent>
                 </Card>
-              )}
+            ))}
             </div>
           )}
         </TabsContent>
         
-        {/* Create Profile Tab */}
-        <TabsContent value="create" className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+      <TabsContent value="create" className="pt-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Create White Label Profile</CardTitle>
+            <CardDescription>
+              Create a new branding profile to use in your PDF reports
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Profile Name</Label>
               <Input 
@@ -419,27 +327,16 @@ const WhiteLabelProfileSelector: React.FC<WhiteLabelProfileSelectorProps> = ({
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                placeholder="My Brand Profile"
+                placeholder="My Company Brand"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="companyName">Company Name</Label>
-              <Input 
-                id="companyName" 
-                name="companyName"
-                value={formData.companyName}
-                onChange={handleInputChange}
-                placeholder="Your Company, Inc."
-              />
-            </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="primaryColor">Primary Color</Label>
-              <div className="flex items-center space-x-2">
+                <div className="flex gap-2">
                 <div 
-                  className="h-8 w-8 rounded-full border" 
+                    className="w-10 h-10 rounded border" 
                   style={{ backgroundColor: formData.primaryColor }}
                 />
                 <Input 
@@ -447,23 +344,7 @@ const WhiteLabelProfileSelector: React.FC<WhiteLabelProfileSelectorProps> = ({
                   name="primaryColor"
                   value={formData.primaryColor}
                   onChange={handleInputChange}
-                  placeholder="#3b82f6"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="secondaryColor">Secondary Color</Label>
-              <div className="flex items-center space-x-2">
-                <div 
-                  className="h-8 w-8 rounded-full border" 
-                  style={{ backgroundColor: formData.secondaryColor }}
-                />
-                <Input 
-                  id="secondaryColor" 
-                  name="secondaryColor"
-                  value={formData.secondaryColor}
-                  onChange={handleInputChange}
-                  placeholder="#64748b"
+                    placeholder="#0066cc"
                 />
               </div>
             </div>
@@ -478,49 +359,52 @@ const WhiteLabelProfileSelector: React.FC<WhiteLabelProfileSelectorProps> = ({
               onChange={handleInputChange}
               placeholder="https://example.com/logo.png"
             />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="contactInfo">Contact Information</Label>
-            <Input 
-              id="contactInfo" 
-              name="contactInfo"
-              value={formData.contactInfo}
-              onChange={handleInputChange}
-              placeholder="contact@yourcompany.com"
+              {formData.logoUrl && (
+                <div className="mt-2 p-2 border rounded">
+                  <img 
+                    src={formData.logoUrl} 
+                    alt="Logo preview" 
+                    className="h-16 object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      alert('Failed to load image. Please check the URL.');
+                    }}
             />
           </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="footerText">Footer Text</Label>
-            <Input 
-              id="footerText" 
-              name="footerText"
-              value={formData.footerText}
-              onChange={handleInputChange}
-              placeholder={`© ${new Date().getFullYear()} ${formData.companyName || 'Your Company'}. All rights reserved.`}
-            />
+              )}
           </div>
-          
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button 
-              variant="outline" 
-              onClick={() => setActiveTab('select')}
-            >
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" onClick={() => setActiveTab('select')}>
               Cancel
             </Button>
-            <Button onClick={handleCreateProfile}>
-              <Save className="h-4 w-4 mr-2" />
+            <Button onClick={handleCreateProfile} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
               Create Profile
+                </>
+              )}
             </Button>
-          </div>
+          </CardFooter>
+        </Card>
         </TabsContent>
         
-        {/* Edit Profile Tab */}
-        <TabsContent value="edit" className="space-y-4">
-          {selectedProfile && isEditing && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
+      <TabsContent value="edit" className="pt-4">
+        {selectedProfile && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Edit Profile: {selectedProfile.name}</CardTitle>
+              <CardDescription>
+                Update your white label profile settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Profile Name</Label>
                   <Input 
@@ -528,27 +412,16 @@ const WhiteLabelProfileSelector: React.FC<WhiteLabelProfileSelectorProps> = ({
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    placeholder="My Brand Profile"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-companyName">Company Name</Label>
-                  <Input 
-                    id="edit-companyName" 
-                    name="companyName"
-                    value={formData.companyName}
-                    onChange={handleInputChange}
-                    placeholder="Your Company, Inc."
-                  />
-                </div>
+                  placeholder="My Company Brand"
+                />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-primaryColor">Primary Color</Label>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex gap-2">
                     <div 
-                      className="h-8 w-8 rounded-full border" 
+                      className="w-10 h-10 rounded border" 
                       style={{ backgroundColor: formData.primaryColor }}
                     />
                     <Input 
@@ -556,23 +429,7 @@ const WhiteLabelProfileSelector: React.FC<WhiteLabelProfileSelectorProps> = ({
                       name="primaryColor"
                       value={formData.primaryColor}
                       onChange={handleInputChange}
-                      placeholder="#3b82f6"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-secondaryColor">Secondary Color</Label>
-                  <div className="flex items-center space-x-2">
-                    <div 
-                      className="h-8 w-8 rounded-full border" 
-                      style={{ backgroundColor: formData.secondaryColor }}
-                    />
-                    <Input 
-                      id="edit-secondaryColor" 
-                      name="secondaryColor"
-                      value={formData.secondaryColor}
-                      onChange={handleInputChange}
-                      placeholder="#64748b"
+                      placeholder="#0066cc"
                     />
                   </div>
                 </div>
@@ -587,56 +444,52 @@ const WhiteLabelProfileSelector: React.FC<WhiteLabelProfileSelectorProps> = ({
                   onChange={handleInputChange}
                   placeholder="https://example.com/logo.png"
                 />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit-contactInfo">Contact Information</Label>
-                <Input 
-                  id="edit-contactInfo" 
-                  name="contactInfo"
-                  value={formData.contactInfo}
-                  onChange={handleInputChange}
-                  placeholder="contact@yourcompany.com"
+                {formData.logoUrl && (
+                  <div className="mt-2 p-2 border rounded">
+                    <img 
+                      src={formData.logoUrl} 
+                      alt="Logo preview" 
+                      className="h-16 object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        alert('Failed to load image. Please check the URL.');
+                      }}
                 />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit-footerText">Footer Text</Label>
-                <Input 
-                  id="edit-footerText" 
-                  name="footerText"
-                  value={formData.footerText}
-                  onChange={handleInputChange}
-                  placeholder={`© ${new Date().getFullYear()} ${formData.companyName}. All rights reserved.`}
-                />
+                )}
               </div>
-              
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setIsEditing(false);
-                    setActiveTab('select');
-                  }}
-                >
+            </CardContent>
+            <CardFooter className="flex justify-between">
+              <Button variant="outline" onClick={() => setActiveTab('select')}>
                   Cancel
                 </Button>
+              <div className="flex space-x-2">
                 <Button 
-                  variant="outline"
+                  variant="secondary" 
                   onClick={handlePreviewProfile}
                 >
+                  <Eye className="mr-2 h-4 w-4" />
                   Preview
                 </Button>
-                <Button onClick={handleUpdateProfile}>
-                  <Save className="h-4 w-4 mr-2" />
+                <Button onClick={handleUpdateProfile} disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
                   Save Changes
+                    </>
+                  )}
                 </Button>
               </div>
-            </>
+            </CardFooter>
+          </Card>
           )}
         </TabsContent>
       </Tabs>
-    </div>
   );
 };
 

@@ -69,12 +69,34 @@ export default function AllCompetitorsPage() {
 
   const analyzeCompetitor = async (id: string) => {
     try {
-      const response = await fetch(`/api/competitors/${id}/analyze`, {
+      // Construct the correct URL using the environment variable
+      const crawlerServiceUrl = process.env.NEXT_PUBLIC_CRAWLER_SERVICE_URL;
+      if (!crawlerServiceUrl) {
+        throw new Error("Crawler service URL is not configured.");
+      }
+      const analyzeUrl = `${crawlerServiceUrl}/api/competitors/${id}/analyze`;
+      
+      console.log(`Attempting to analyze competitor at URL: ${analyzeUrl}`); // Added log
+
+      const response = await fetch(analyzeUrl, {
         method: 'POST',
+        // Add headers if needed, e.g., Content-Type
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Add body if the crawler service expects any specific options
+        // body: JSON.stringify({ options: { /* ... */ } }) 
       });
       
-      if (!response.ok) throw new Error('Failed to start analysis');
+      if (!response.ok) {
+        const errorData = await response.text(); // Get more details on error
+        console.error("Analysis API Error:", response.status, errorData); // Added log
+        throw new Error(`Failed to start analysis: ${response.statusText} - ${errorData}`);
+      }
       
+      const result = await response.json(); // Get the response data
+      console.log("Analysis API Success:", result); // Added log
+
       toast({
         title: "Analysis Started",
         description: "Competitor analysis has been queued.",

@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getPdfGenerationJob } from '@/services/pdf-job';
 import { exportAuditToPdf } from '@/services/pdf-export';
-import { renderToString } from '@react-pdf/renderer';
+// Import React for JSX support
+import React from 'react';
+import { renderToBuffer } from '@react-pdf/renderer';
 import { SEOAuditReport } from '@/components/pdf';
 import { PdfThemeProvider } from '@/context/ThemeContext';
 
@@ -79,7 +81,7 @@ export async function GET(request: Request, { params }: Params) {
     
     try {
       // Fetch complete audit data
-      const result = await exportAuditToPdf({
+      const { auditData, whiteLabel } = await exportAuditToPdf({
         auditId,
         projectId,
         customLogo: job.parameters.customLogo,
@@ -105,15 +107,83 @@ export async function GET(request: Request, { params }: Params) {
       const safeProjectName = projectName.toString().replace(/[^a-z0-9]/gi, '-').toLowerCase();
       const fileName = `${safeProjectName}-${new Date().toISOString().split('T')[0]}.pdf`;
       
-      // Since we don't have direct PDF blob generation, we need to use the API for now
-      // This is a temporary solution - in production, we should either:
-      // 1. Generate and store the PDF in storage when the job completes, or
-      // 2. Use a server-side PDF generation service
+      // Now we'll generate the PDF directly instead of redirecting
+      console.log(`Generating PDF for job ${jobId} directly in the download endpoint`);
       
-      // For now, we'll just redirect to the existing PDF export endpoint
-      return NextResponse.redirect(
-        new URL(`/api/audits/${auditId}/export/pdf`, request.url)
+      // Get the job content for the enhanced data
+      let enhancedData = { ...auditData };
+      
+      // If the job has content, merge it with the audit data
+      if (job.content) {
+        // Extract content into a familiar shape
+        const jobContent = job.content || {};
+        console.log(`Job content includes: ${Object.keys(jobContent).join(', ')}`);
+        
+        // Add the job content to the enhanced data with familiar keys
+        enhancedData.ai_content = {
+          executive_summary: jobContent.executiveSummary || '',
+          recommendations: jobContent.recommendations || [],
+          technical_explanations: jobContent.technicalExplanations || {},
+          generated_at: jobContent.generatedAt || new Date().toISOString()
+        };
+        
+        // Add the flag to indicate AI content is enabled
+        enhancedData.ai_content_enabled = job.parameters.useAiContent;
+      }
+      
+      // Create theme settings object
+      const themeSettings = {
+        primaryColor: job.parameters.customColors?.primary || '#3b82f6',
+        secondaryColor: job.parameters.customColors?.secondary || '#4b5563',
+        logoUrl: job.parameters.customLogo || '',
+        companyName: job.parameters.clientInfo?.company || 'LilySEO',
+        contactInfo: job.parameters.clientInfo?.email || '',
+        fontFamily: 'Helvetica',
+        pageSize: 'A4',
+        footerText: `© ${new Date().getFullYear()} ${job.parameters.clientInfo?.company || 'LilySEO'}. All rights reserved.`,
+        includeOptions: {
+          coverPage: true,
+          executiveSummary: true,
+          issuesSummary: true,
+          performance: true,
+          onPageSEO: true,
+          technicalSEO: true,
+          structuredData: true,
+          internalLinks: true,
+          customNotes: !!job.parameters.customNotes
+        }
+      };
+      
+      // Create a PDF buffer directly using React PDF
+      const pdfBuffer = await renderToBuffer(
+        React.createElement(
+          PdfThemeProvider,
+          { themeSettings },
+          React.createElement(SEOAuditReport, {
+            auditData: enhancedData,
+            clientInfo: job.parameters.clientInfo,
+            includeRecommendations: true,
+            customNotes: job.parameters.customNotes || '',
+            templateId: job.parameters.template || 'default',
+            useAiContent: job.parameters.useAiContent || false,
+          })
+        )
       );
+      
+      console.log(`PDF buffer created, size: ${pdfBuffer.length} bytes`);
+      
+      // Return the PDF with proper headers
+      const headers = new Headers();
+      headers.set("Content-Type", "application/pdf");
+      headers.set(
+        "Content-Disposition",
+        `attachment; filename="${fileName}"`
+      );
+      
+      return new NextResponse(pdfBuffer, {
+        status: 200,
+        headers,
+      });
       
     } catch (error) {
       console.error('Error generating PDF:', error);

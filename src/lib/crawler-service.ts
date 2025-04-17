@@ -42,6 +42,7 @@ export async function startAudit(
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify({
       projectId,
       url,
@@ -53,12 +54,18 @@ export async function startAudit(
 
 /**
  * Get the status of an audit from the crawler service
- * @param projectId The ID of the project
+ * @param auditId The ID of the audit
  * @returns A promise that resolves to the audit status
  */
-export async function getAuditStatus(projectId: string): Promise<any> {
+export async function getAuditStatus(auditId: string): Promise<any> {
   const response = await fetch(
-    getCrawlerServiceUrl(`/api/audit/status/${projectId}`)
+    getCrawlerServiceUrl(`/api/audit/status/${auditId}`),
+    {
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
   );
 
   if (!response.ok) {
@@ -79,6 +86,7 @@ export async function updateMozData(url: string): Promise<Response> {
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify({ url }),
   });
 }
@@ -94,6 +102,7 @@ export async function updatePageSpeedData(url: string): Promise<Response> {
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify({ url }),
   });
 }

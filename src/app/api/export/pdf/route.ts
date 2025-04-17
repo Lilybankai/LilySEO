@@ -50,19 +50,21 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      // Fetch white label settings if the user has access
-      const { data: subscription } = await supabase
-        .from("subscriptions")
-        .select("plan_id")
-        .eq("user_id", user.id)
-        .eq("status", "active")
+      // Fetch user's subscription tier from profiles
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("subscription_tier, subscription_status")
+        .eq("id", user.id)
         .single();
       
-      const isPro = subscription?.plan_id?.includes("pro");
+      // Check for Pro OR Enterprise plans
+      const isPremiumUser = !!profile && 
+                           profile.subscription_status === 'active' && 
+                           (profile.subscription_tier === 'pro' || profile.subscription_tier === 'enterprise');
       
       let whiteLabel = null;
       
-      if (isPro) {
+      if (isPremiumUser) {
         const { data: whiteLabelData } = await supabase
           .from("white_label_settings")
           .select("*")
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         auditData: audit,
         whiteLabel,
-        isPro
+        isPro: isPremiumUser
       });
     }
     

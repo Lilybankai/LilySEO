@@ -16,6 +16,7 @@ export async function isCrawlerServiceAvailable(): Promise<boolean> {
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       // Set a timeout to avoid hanging if the service is down
       signal: AbortSignal.timeout(5000),
     });
@@ -44,6 +45,7 @@ export async function startAudit(
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify({
       projectId,
       auditOptions,
@@ -65,7 +67,13 @@ export async function startAudit(
  * @returns A promise that resolves to the audit status
  */
 export async function getAuditStatus(auditId: string): Promise<any> {
-  const response = await fetch(`/api/audits/${auditId}/status`);
+  const response = await fetch(`/api/audits/${auditId}/status`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include"
+  });
 
   if (!response.ok) {
     const errorData = await response.json();
@@ -81,7 +89,13 @@ export async function getAuditStatus(auditId: string): Promise<any> {
  * @returns A promise that resolves to the audit results
  */
 export async function getAuditResults(auditId: string): Promise<any> {
-  const response = await fetch(`/api/audits/${auditId}`);
+  const response = await fetch(`/api/audits/${auditId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include"
+  });
 
   if (!response.ok) {
     const errorData = await response.json();

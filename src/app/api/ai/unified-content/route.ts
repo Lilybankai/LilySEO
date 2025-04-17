@@ -402,11 +402,14 @@ async function callAzureOpenAI(prompt: string, expectJson: boolean = false, requ
     const content = responseData.choices[0]?.message?.content;
     if (!content) {
       console.error(`[Azure OpenAI][${requestLabel}] No content in response:`, JSON.stringify(responseData));
+      // Log the full response body if content is missing
+      console.error(`[Azure OpenAI][${requestLabel}] Full response body:`, JSON.stringify(responseData, null, 2));
       throw new Error('No content in Azure OpenAI response');
     }
     
     console.log(`[Azure OpenAI][${requestLabel}] Content received (${content.length} chars)`);
     console.log(`[Azure OpenAI][${requestLabel}] First 100 chars of content: ${content.substring(0, 100)}...`);
+    console.log(`[Azure OpenAI][${requestLabel}] Last 50 chars of content: ...${content.substring(content.length - 50)}`);
     
     // For JSON responses, validate that it's proper JSON
     if (expectJson) {
@@ -415,6 +418,8 @@ async function callAzureOpenAI(prompt: string, expectJson: boolean = false, requ
         console.log(`[Azure OpenAI][${requestLabel}] Successfully validated JSON content`);
       } catch (error) {
         console.warn(`[Azure OpenAI][${requestLabel}] Response is not valid JSON:`, error);
+        // Log the invalid JSON content for debugging
+        console.warn(`[Azure OpenAI][${requestLabel}] Invalid JSON content received:`, content);
         // We'll still return the content and let the caller handle this
       }
     }

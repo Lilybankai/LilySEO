@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { notFound, redirect, useSearchParams } from "next/navigation"
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useMemo } from "react";
 import { 
   ArrowDown, 
   ArrowUp, 
@@ -34,6 +34,7 @@ import { getUserAuditLimits } from "@/lib/subscription"
 import { ToastHandler } from "@/components/toast-handler"
 import { ResponsiveContainer, LineChart as RechartsLineChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Line } from "recharts"
 import { startAudit, pollAuditUntilComplete } from "@/lib/crawler-service-client"
+import { CompetitorComparisonTable } from "@/components/competitors/comparison-table"
 
 interface ProjectPageProps {
   params: {
@@ -228,6 +229,19 @@ export default function ProjectPageWrapper(props: { params: Promise<{ id: string
           setTodos(todoData);
         }
         
+        // Get competitors for this project
+        const { data: competitorData, error: competitorError } = await supabase
+          .from("competitors")
+          .select("*") // Select columns needed for display
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false });
+
+        if (competitorError) {
+          console.error("Error fetching competitors:", competitorError);
+        } else {
+          setCompetitors(competitorData || []);
+        }
+        
         // Get latest metrics from audit_metrics_history
         const { data: metricsData, error: metricsError } = await supabase
           .from("audit_metrics_history")
@@ -328,6 +342,45 @@ export default function ProjectPageWrapper(props: { params: Promise<{ id: string
     
     fetchData();
   }, [projectId]);
+
+  // --- Derive completed competitors for the table using useMemo ---
+  const filteredCompletedCompetitors = useMemo(() => {
+    // --- DEBUG LOG: Show raw competitors before filtering ---
+    console.log('[DEBUG] Raw competitors fetched for project:', competitors);
+    
+    const processedCompetitors = (competitors || []) // Use the existing 'competitors' state fetched
+      // --- DEBUG: Temporarily comment out the filter to see all data ---
+      /* .filter((comp: any) => comp.status === 'completed' && comp.analysis_data) */
+      .map((comp: any) => ({
+        id: comp.id,
+        name: comp.name || comp.competitor_url, // Use name or fallback to url
+        url: comp.competitor_url,
+        // Pass status through for potential display/debug in table later
+        status: comp.status, 
+        // Map analysis_data to the structure expected by CompetitorComparisonTable
+        analysis: comp.analysis_data ? { // Check if analysis_data exists before accessing metrics
+          metrics: {
+            domainAuthority: comp.analysis_data?.domainAuthority,
+            backlinks: comp.analysis_data?.backlinks,
+            referringDomains: comp.analysis_data?.referringDomains,
+            trafficEstimate: comp.analysis_data?.trafficEstimate,
+            keywordCount: comp.analysis_data?.keywordCount,
+            pageSpeed: {
+              desktop: comp.analysis_data?.pageSpeed?.desktop,
+              mobile: comp.analysis_data?.pageSpeed?.mobile,
+            },
+          },
+        } : null, // Set analysis to null if analysis_data is null/undefined
+      }));
+      
+      // --- DEBUG LOG: Show competitors after mapping (pre-filtering) ---
+      console.log('[DEBUG] Mapped competitors (before filtering): ', processedCompetitors);
+      
+      // --- Re-apply filtering after mapping/logging ---
+      return processedCompetitors.filter(comp => comp.status === 'completed' && comp.analysis);
+      
+  }, [competitors]); // Depend on the fetched competitors state
+  // --- End derived state ---
 
   if (loading) {
     return <div className="container py-10">Loading project data...</div>;
@@ -864,57 +917,22 @@ export default function ProjectPageWrapper(props: { params: Promise<{ id: string
         </TabsContent>
         
         {/* Competitors Tab */}
-        <TabsContent value="competitors">
+        <TabsContent value="competitors" className="space-y-4">
           <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Competitor Analysis</CardTitle>
-                  <CardDescription>Track and compare your performance against competitors</CardDescription>
-                </div>
-                <Button asChild>
-                  <Link href={`/projects/${project.id}/competitors/new`}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Competitor
-                  </Link>
-                </Button>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Competitors</CardTitle>
+                <CardDescription>Tracked competitor sites for this project</CardDescription>
               </div>
+              <Button variant="outline" size="sm" asChild>
+                 <Link href={`/projects/${project.id}/competitors/new`}>
+                   <Plus className="mr-2 h-4 w-4" />
+                   Add Competitor
+                 </Link>
+               </Button>
             </CardHeader>
             <CardContent>
-              {competitors && competitors.length > 0 ? (
-                <div className="space-y-4">
-                  {competitors.map((competitor) => (
-                    <DashboardActivityItem
-                      key={competitor.id}
-                      icon="Users"
-                      title={competitor.competitor_url}
-                      description={`Last analyzed: ${new Date(competitor.created_at).toLocaleDateString()}`}
-                      timestamp={new Date(competitor.created_at).toLocaleDateString()}
-                      link={`/competitors/${competitor.id}`}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="py-10 text-center">
-                  <div className="flex flex-col items-center justify-center space-y-4">
-                    <div className="rounded-full bg-primary/10 p-3">
-                      <Users className="h-8 w-8 text-primary" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-semibold">No competitors yet</h3>
-                      <p className="text-muted-foreground max-w-md mx-auto">
-                        Add competitors to track and compare your SEO performance against them.
-                      </p>
-                    </div>
-                    <Button asChild>
-                      <Link href={`/projects/${project.id}/competitors/new`}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Competitor
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <CompetitorComparisonTable competitors={filteredCompletedCompetitors} />
             </CardContent>
           </Card>
         </TabsContent>

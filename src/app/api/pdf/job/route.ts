@@ -283,6 +283,19 @@ async function startJobProcessing(
     const totalProcessingTime = Date.now() - processingStartTime;
     console.log(`[PDF Job ${jobId}] Job processing completed in ${totalProcessingTime}ms`);
     
+    // Explicitly log the content object before saving
+    console.log(`[PDF Job ${jobId}] Content object before final status update:`, 
+      JSON.stringify({
+        hasContent: !!content,
+        contentType: typeof content,
+        hasExecutiveSummary: !!content?.executiveSummary,
+        executiveSummaryLength: content?.executiveSummary?.length,
+        recommendationsCount: content?.recommendations?.length,
+        technicalExplanationsCount: Object.keys(content?.technicalExplanations || {}).length,
+        isFallback: content?.isFallback || false
+      })
+    );
+    
     // Update job status to completed
     const { data, error } = await supabase.rpc('update_pdf_generation_job_status', {
       p_job_id: jobId,
@@ -293,6 +306,8 @@ async function startJobProcessing(
     
     if (error) {
       console.error(`[PDF Job ${jobId}] Error updating job status to completed:`, error);
+      // Log the content that failed to save
+      console.error(`[PDF Job ${jobId}] Content that failed to save:`, JSON.stringify(content));
     } else {
       console.log(`[PDF Job ${jobId}] Job completed successfully with status:`, data);
     }

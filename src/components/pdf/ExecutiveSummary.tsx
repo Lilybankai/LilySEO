@@ -101,10 +101,13 @@ const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
     aiContentType: typeof aiExecutiveSummary
   });
   
-  // Use a proper executive summary even if AI generation failed
-  const effectiveExecutiveSummary = (!aiExecutiveSummary || isFallbackContent) ? 
-    generateStandardExecutiveSummary(auditData) : 
-    aiExecutiveSummary;
+  // Decide which summary to use:
+  // If useAiContent is true AND we have a non-fallback AI summary, use it.
+  // Otherwise, use the standard summary.
+  const displayAiSummary = useAiContent && aiExecutiveSummary && !isFallbackContent;
+  const effectiveExecutiveSummary = displayAiSummary 
+    ? aiExecutiveSummary 
+    : generateStandardExecutiveSummary(auditData);
   
   // Function to generate a standard executive summary from audit data
   function generateStandardExecutiveSummary(data: any): string {
