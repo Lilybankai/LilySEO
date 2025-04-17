@@ -1,0 +1,74 @@
+warning: in the working copy of 'migrations/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/lead-finder/search/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/todos/route.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/projects/[id]/audits/[auditId]/page.client.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/projects/[id]/audits/[auditId]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/projects/[id]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/projects/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/tailwind-output.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/audit/audit-status-display.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/audits/enhanced-audit-report.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/audits/sections/ai-recommendations.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/audits/sections/audit-overview.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/audits/sections/issues-table.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/layout/dashboard-layout.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/lead-finder/lead-search.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/lead-finder/location-autocomplete.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/lead-finder/map.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/ui/todo-button.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/white-label/settings-form.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/client-todo-service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/crawler-service-client.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/todo-service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/services/notifications.ts', LF will be replaced by CRLF the next time Git touches it
+Instructions/serp.md
+docs/PDFimplementation.md
+migrations/auditexample.md
+migrations/audithtml.md
+package-lock.json
+package.json
+src/app/api/audits/[id]/status/route.ts
+src/app/api/lead-finder/search/route.ts
+src/app/api/notifications/route.ts
+src/app/api/projects/[id]/quick-audit/route.ts
+src/app/api/todos/[id]/route.ts
+src/app/api/todos/route.ts
+src/app/dashboard/page.tsx
+src/app/dashboard/support/page.tsx
+src/app/layout.tsx
+src/app/lead-finder/page.tsx
+src/app/projects/[id]/audits/[auditId]/page.client.tsx
+src/app/projects/[id]/audits/[auditId]/page.tsx
+src/app/projects/[id]/page.tsx
+src/app/projects/page.tsx
+src/app/tailwind-output.css
+src/components/audit/audit-status-display.tsx
+src/components/audits/charts/score-radar-chart.tsx
+src/components/audits/enhanced-audit-report.tsx
+src/components/audits/sections/action-plan.tsx
+src/components/audits/sections/ai-recommendations.tsx
+src/components/audits/sections/audit-header.tsx
+src/components/audits/sections/audit-issues.tsx
+src/components/audits/sections/audit-overview.tsx
+src/components/audits/sections/executive-summary.tsx
+src/components/audits/sections/issues-table.tsx
+src/components/audits/sections/page-speed-section.tsx
+src/components/dashboard/project-card.tsx
+src/components/layout/dashboard-layout.tsx
+src/components/lead-finder/lead-search.tsx
+src/components/lead-finder/location-autocomplete.tsx
+src/components/lead-finder/map.tsx
+src/components/notifications/notifications-dropdown.tsx
+src/components/pdf/CustomizePanel.tsx
+src/components/pdf/PDFPreview.tsx
+src/components/pdf/SEOAuditReport.tsx
+src/components/project/audit-list-item.tsx
+src/components/ui/todo-button.tsx
+src/components/white-label/settings-form.tsx
+src/context/ThemeContext.tsx
+src/lib/client-todo-service.ts
+src/lib/crawler-service-client.ts
+src/lib/todo-service.ts
+src/services/notifications.ts
