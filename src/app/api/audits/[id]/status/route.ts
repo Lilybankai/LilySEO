@@ -14,11 +14,12 @@ export async function GET(request: NextRequest, context: { params: { id: string 
     const { id } = await Promise.resolve(context.params);
     const auditId = id;
     
-    // Get the current user's session
+    // Get the current user
     const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    // Use getUser() instead of getSession()
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -28,9 +29,9 @@ export async function GET(request: NextRequest, context: { params: { id: string 
     // Check if the audit exists and belongs to the user
     const { data: audit, error: auditError } = await supabase
       .from("audits")
-      .select("*")
+      .select("*") // Select only necessary fields? e.g., "project_id, status"
       .eq("id", auditId)
-      .eq("user_id", session.user.id)
+      .eq("user_id", user.id) // Use user.id directly
       .single();
 
     if (auditError || !audit) {
@@ -40,105 +41,66 @@ export async function GET(request: NextRequest, context: { params: { id: string 
       );
     }
 
-    // Check the status from the crawler service
+    // Check the status from the crawler service using the correct auditId
     try {
+      console.log(`[API Audit Status] Fetching crawler status for auditId: ${auditId}`);
       const crawlerResponse = await fetch(
-        getCrawlerServiceUrl(`/api/audit/status/${audit.project_id}`)
+        getCrawlerServiceUrl(`/api/audit/status/${auditId}`) // Correct: Use auditId
       );
 
       if (!crawlerResponse.ok) {
+        const errorText = await crawlerResponse.text();
+        console.error(`[API Audit Status] Crawler service error: ${crawlerResponse.status} ${crawlerResponse.statusText}. Body: ${errorText}`)
         throw new Error(`Failed to get audit status: ${crawlerResponse.statusText}`);
       }
 
       const crawlerStatus = await crawlerResponse.json();
       
-      console.log('Crawler status response:', JSON.stringify(crawlerStatus));
+      // Log the actual response from the crawler for debugging
+      console.log(`[API Audit Status] Crawler status response for auditId ${auditId}:`, JSON.stringify(crawlerStatus));
 
-      // Update the audit status in the database if it's different
-      // Also handle the case where we see results but status isn't explicitly updated
-      const newStatus = crawlerStatus.status || (crawlerStatus.results ? "completed" : audit.status);
-      
-      // If the status needs to be updated OR if we have results but still showing processing
-      if (newStatus !== audit.status || (newStatus === "completed" && audit.status === "processing")) {
-        console.log(`Updating audit status from ${audit.status} to ${newStatus}`);
-        
+      // Update the audit status in the database only if the crawler service reports a terminal state
+      // Let the webhook handle the final update with results
+      // Possible crawler statuses: 'pending', 'processing', 'completed', 'failed'
+      const newStatus = crawlerStatus.status;
+
+      // Only update if the status from crawler is different *and* is a terminal state ('completed' or 'failed')
+      // Avoid overwriting 'processing' based on intermediate crawler checks.
+      // Let the webhook be the primary source of truth for 'completed' status along with results.
+      if ((newStatus === 'completed' || newStatus === 'failed') && newStatus !== audit.status) {
+        console.log(`[API Audit Status] Updating audit ${auditId} status from ${audit.status} to ${newStatus} based on crawler check.`);
         await supabase
           .from("audits")
-          .update({
-            status: newStatus,
-            updated_at: new Date().toISOString(),
-          })
+          .update({ status: newStatus }) // Only update status here, not results
           .eq("id", auditId);
-
-        // If the audit is complete, update the report data
-        if ((newStatus === "completed" || crawlerStatus.results) && crawlerStatus.results) {
-          // Extract score from results, ensuring it's a valid number between 0-100
-          let scoreValue = 0;
-          let fixesNeeded = 0;
-          
-          // Try to extract the score from different possible structures
-          if (typeof crawlerStatus.results.score === 'number') {
-            scoreValue = crawlerStatus.results.score;
-          } else if (crawlerStatus.results.summary?.score) {
-            scoreValue = crawlerStatus.results.summary.score;
-          } else if (crawlerStatus.results.score?.overall) {
-            scoreValue = crawlerStatus.results.score.overall;
-          }
-          
-          // Calculate total fixes needed from issues or recommendations
-          if (crawlerStatus.results.issues) {
-            // Sum all issues across categories
-            Object.values(crawlerStatus.results.issues).forEach((issues: any) => {
-              if (Array.isArray(issues)) {
-                fixesNeeded += issues.length;
-              }
-            });
-          } else if (crawlerStatus.results.recommendations) {
-            fixesNeeded = Array.isArray(crawlerStatus.results.recommendations) 
-              ? crawlerStatus.results.recommendations.length 
-              : 0;
-          } else if (crawlerStatus.results.summary?.totalIssues) {
-            fixesNeeded = crawlerStatus.results.summary.totalIssues;
-          }
-          
-          // Ensure score is between 0-100
-          scoreValue = Math.max(0, Math.min(100, Math.round(scoreValue)));
-          
-          console.log('Updating audit with score:', scoreValue, 'and fixes needed:', fixesNeeded);
-          
-          // Store both score and fixes_needed in the database
-          await supabase
-            .from("audits")
-            .update({
-              score: scoreValue,
-              report: crawlerStatus.results,
-              // Store fixes_needed count in a JSON field to avoid schema changes
-              metadata: { fixes_needed: fixesNeeded },
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", auditId);
-        }
+        
+        // Return the updated status immediately
+        return NextResponse.json({ 
+          ...audit, // Return original audit data 
+          status: newStatus // Reflect the updated status
+        });
+      } else if (newStatus !== audit.status) {
+        // Log if status differs but is not terminal (e.g., pending -> processing)
+        console.log(`[API Audit Status] Audit ${auditId} status differs (${audit.status} -> ${newStatus}) but not updating DB via status check.`);
       }
-
-      return NextResponse.json({
-        status: crawlerStatus.status || audit.status,
-        crawlerStatus,
-        audit,
-      });
-    } catch (error) {
-      console.error("Error fetching status from crawler service:", error);
       
-      // Return the current status from the database
-      return NextResponse.json({
-        status: audit.status,
-        message: "Using database status as crawler service is unavailable",
-        audit,
+      // Return the current status from the database (or the fetched status if it reflects progress)
+      // This ensures the frontend sees 'processing' until the webhook confirms completion.
+      return NextResponse.json({ 
+          ...audit, // Return audit data from DB
+          status: audit.status // Return the DB status primarily
       });
+
+    } catch (crawlerError) {
+      console.error(`[API Audit Status] Error fetching/processing crawler status for auditId ${auditId}:`, crawlerError);
+      // Return the current audit status from DB if crawler check fails
+      return NextResponse.json(audit); 
     }
+
   } catch (error) {
-    console.error("Unexpected error:", error);
+    console.error("[API Audit Status] General error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
